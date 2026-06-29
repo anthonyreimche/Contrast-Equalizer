@@ -185,6 +185,14 @@ export function EqualizerPanel() {
   const { useState, useRef, useEffect } = react;
   const useDevelopStore = api().stores.useDevelopStore;
   const Slider = api().components.Slider;
+  const ui = api().ui;
+  if (!ui)
+    return h(
+      "div",
+      { style: { padding: "10px", fontSize: "11px", color: "var(--color-text-muted)" } },
+      "Update Safelight to use this panel.",
+    );
+  const { SegmentedControl, Select } = ui;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const paramBag: Record<string, any> = useDevelopStore((s: any) => s.paramBag);
@@ -373,43 +381,15 @@ export function EqualizerPanel() {
   };
 
   // ── UI ──
-  const tabBar = h(
-    "div",
-    {
-      style: {
-        display: "flex",
-        marginBottom: 6,
-        borderRadius: 4,
-        overflow: "hidden",
-        background: "var(--color-surface-2)",
-      },
+  const tabBar = h(SegmentedControl, {
+    value: tabKey,
+    size: "sm",
+    options: TABS.map((t) => ({ value: t.key, label: t.label })),
+    onChange: (v: string) => {
+      setTabKey(v as TabKey);
+      setSelected(null);
     },
-    TABS.map((t) =>
-      h(
-        "button",
-        {
-          key: t.key,
-          onClick: () => {
-            setTabKey(t.key);
-            setSelected(null);
-          },
-          style: {
-            flex: 1,
-            padding: "4px 0",
-            fontSize: 10,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            border: "none",
-            cursor: "pointer",
-            background: tabKey === t.key ? "var(--color-surface-3)" : "transparent",
-            color: tabKey === t.key ? t.color : "var(--color-text-muted)",
-          },
-        },
-        t.label,
-      ),
-    ),
-  );
+  });
 
   const graph = h(
     "div",
@@ -433,33 +413,21 @@ export function EqualizerPanel() {
     }),
   );
 
-  const presetRow = h(
-    "select",
-    {
-      value: "",
-      onChange: (e: { target: { value: string } }) => {
-        const p = PRESETS.find((x) => x.id === e.target.value);
-        if (!p) return;
-        applyCurves(p.build());
-        commit();
-        setSelected(null);
-      },
-      style: {
-        width: "100%",
-        borderRadius: 4,
-        background: "var(--color-surface-2)",
-        color: "var(--color-text-primary)",
-        border: "none",
-        padding: "3px 6px",
-        fontSize: 11,
-        outline: "none",
-      },
+  const presetRow = h(Select, {
+    value: "",
+    style: { width: "100%" },
+    onChange: (v: string) => {
+      const p = PRESETS.find((x) => x.id === v);
+      if (!p) return;
+      applyCurves(p.build());
+      commit();
+      setSelected(null);
     },
-    [
-      h("option", { key: "_", value: "" }, "Presets…"),
-      ...PRESETS.map((p) => h("option", { key: p.id, value: p.id }, p.label)),
+    options: [
+      { value: "", label: "Presets…" },
+      ...PRESETS.map((p) => ({ value: p.id, label: p.label })),
     ],
-  );
+  });
 
   const hint = h(
     "p",

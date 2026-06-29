@@ -110,6 +110,24 @@ export interface SafelightAPI {
   /** { useDevelopStore, useCatalogStore, useUIStore, usePresetsStore, … }. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   stores: Record<string, any>;
+  /** Shared core UI kit. Optional — older hosts won't provide it. */
+  ui?: {
+    Button: ComponentType;
+    Select: ComponentType;
+    TextInput: ComponentType;
+    NumberInput: ComponentType;
+    TextArea: ComponentType;
+    Toggle: ComponentType;
+    SegmentedControl: ComponentType;
+    Field: ComponentType;
+    Section: ComponentType;
+    Card: ComponentType;
+    Badge: ComponentType;
+    ProgressBar: ComponentType;
+    Row: ComponentType;
+    Stack: ComponentType;
+    tokens: Record<string, string>;
+  };
 }
 
 export interface ExtensionModule {
