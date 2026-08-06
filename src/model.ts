@@ -74,42 +74,48 @@ function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-/** Catmull-Rom spline through the BANDS nodes (uniform x spacing), clamped to
- *  [0,1] — darktable draws its equalizer splines the same way. */
+/** darktable's equalizer spline (curve_tools.c catmull_rom_set/_val via
+ *  dt_draw_curve_calc_value): Hermite segments with central-difference tangents,
+ *  ONE-SIDED slopes at the two end nodes — not endpoint duplication, which would
+ *  halve the end tangents and flatten the outer segments — and only the final
+ *  value clamped to [0,1]. */
 export function evalCurve(y: number[], t: number): number {
   const n = y.length;
-  if (t <= NODE_X[0]) return clamp01(y[0]);
-  if (t >= NODE_X[n - 1]) return clamp01(y[n - 1]);
-  let i = 0;
-  while (i < n - 1 && t > NODE_X[i + 1]) i++;
-  const x0 = NODE_X[i];
-  const x1 = NODE_X[i + 1];
-  const u = (t - x0) / (x1 - x0);
-  const p0 = y[Math.max(0, i - 1)];
-  const p1 = y[i];
-  const p2 = y[i + 1];
-  const p3 = y[Math.min(n - 1, i + 2)];
+  let i = n - 2;
+  for (let k = 0; k < n - 2; k++) {
+    if (t < NODE_X[k + 1]) {
+      i = k;
+      break;
+    }
+  }
+  const slope = (a: number, b: number) => (y[b] - y[a]) / (NODE_X[b] - NODE_X[a]);
+  const m0 = i === 0 ? slope(0, 1) : slope(i - 1, i + 1);
+  const m1 = i === n - 2 ? slope(n - 2, n - 1) : slope(i, i + 2);
+  const h = NODE_X[i + 1] - NODE_X[i];
+  const u = (t - NODE_X[i]) / h;
   const u2 = u * u;
   const u3 = u2 * u;
-  const v =
-    0.5 *
-    (2 * p1 +
-      (-p0 + p2) * u +
-      (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 +
-      (-p0 + 3 * p1 - 3 * p2 + p3) * u3);
-  return clamp01(v);
+  const h00 = 2 * u3 - 3 * u2 + 1;
+  const h10 = u3 - 2 * u2 + u;
+  const h01 = -2 * u3 + 3 * u2;
+  const h11 = u3 - u2;
+  return clamp01(h00 * y[i] + h10 * h * m0 + h01 * y[i + 1] + h11 * h * m1);
 }
 
 // ── darktable coefficient derivation ─────────────────────────────────────────
 //
-// "mix" scales every node's deviation from its channel default (darktable's
-// _apply_mix): effective = default + mix·(value − default). mix = 1 is identity.
+// "mix" scales every NODE's deviation from its channel default before the spline
+// is evaluated (darktable's _apply_mix runs in commit_params, ahead of the
+// interpolation): node' = clamp01(default + mix·(node − default)). mix = 1 is
+// identity.
 
 export const DEFAULT_MIX = 1;
 
 function mixed(curves: Curves, ch: ChannelKey, t: number, mix: number): number {
   const def = CHANNEL_DEFAULT[ch];
-  return clamp01(def + mix * (evalCurve(curves[ch], t) - def));
+  const nodes =
+    mix === 1 ? curves[ch] : curves[ch].map((v) => clamp01(def + mix * (v - def)));
+  return evalCurve(nodes, t);
 }
 
 /** Per-scale inline uniforms. darktable: boost = (2·curve)², thrs_L =
