@@ -13,23 +13,9 @@ import { initRuntime } from "./runtime";
 import { allBandStages, BASE_ID, bandStageId } from "./wavelet";
 import { EqualizerPanel } from "./Equalizer";
 import { deriveAll, DEFAULT_MIX } from "./params";
-import { defaultCurves, GPU_SCALES, DILATIONS, type DetailRange } from "./model";
+import { defaultCurves, GPU_SCALES } from "./model";
 
 const PANEL_ID = `${BASE_ID}.panel`;
-const RANGE_KEY = "range";
-
-function rangeOf(api: SafelightAPI): DetailRange {
-  const v = api.settings.get<DetailRange>(RANGE_KEY, "fine");
-  return v === "extended" ? "extended" : "fine";
-}
-
-function registerStages(api: SafelightAPI, range: DetailRange): void {
-  // Re-registering the same stage ids replaces them (and recompiles the develop
-  // shader) — so flipping the detail range just rebuilds with a new dilation
-  // schedule. Each stage stays an exact identity until the panel writes non-
-  // default boosts/thresholds, so an untouched photo renders unchanged.
-  for (const stage of allBandStages(DILATIONS[range])) api.registerProcessingStage(stage);
-}
 
 function resetPanel(api: SafelightAPI): void {
   const store = api.stores.useDevelopStore.getState();
@@ -41,24 +27,9 @@ function resetPanel(api: SafelightAPI): void {
 export function activate(api: SafelightAPI): void {
   initRuntime(api);
 
-  registerStages(api, rangeOf(api));
-
-  api.registerSettings({
-    title: "Contrast Equalizer",
-    fields: [
-      {
-        key: RANGE_KEY,
-        label: "Detail range",
-        hint: "How far the four octaves reach. 'Fine' (default) covers ~5–33 px — best for sharpening, clarity and denoise. 'Extended' stretches the coarse end to ~257 px for big local-contrast / bloom moves, at some loss of smoothness.",
-        type: "select",
-        default: "fine",
-        options: [
-          { value: "fine", label: "Fine (sharpen / clarity / denoise)" },
-          { value: "extended", label: "Extended (adds coarse / bloom)" },
-        ],
-      },
-    ],
-  });
+  // Each stage stays an exact identity until the panel writes non-default
+  // boosts/thresholds, so an untouched photo renders unchanged.
+  for (const stage of allBandStages()) api.registerProcessingStage(stage);
 
   api.registerPanel({
     id: PANEL_ID,
@@ -66,13 +37,6 @@ export function activate(api: SafelightAPI): void {
     component: EqualizerPanel,
     defaultDock: { module: "develop", direction: "right", order: 7, width: 268 },
     onReset: () => resetPanel(api),
-  });
-
-  // Follow the Preferences dropdown: rebuild the stages on a range change.
-  api.settings.onChange((key, value) => {
-    if (key === RANGE_KEY) {
-      registerStages(api, value === "extended" ? "extended" : "fine");
-    }
   });
 }
 

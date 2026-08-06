@@ -11,6 +11,7 @@
 import {
   BANDS,
   GPU_SCALES,
+  OCTAVES,
   bandCoeffs,
   cloneCurves,
   defaultCurves,
@@ -55,7 +56,7 @@ export function deriveAll(curves: Curves, mix: number): Record<string, number | 
   // Panel source-of-truth.
   for (const ch of CHANNELS) out[curveKey(ch)] = [...curves[ch]];
   out[MIX_KEY] = mix;
-  // GPU uniforms, per octave.
+  // GPU uniforms, per exposed octave.
   const sh = sharps(curves, mix);
   for (let i = 0; i < GPU_SCALES; i++) {
     const id = bandStageId(i);
@@ -64,10 +65,15 @@ export function deriveAll(curves: Curves, mix: number): Record<string, number | 
     out[`${id}.gainC`] = cf.gainC;
     out[`${id}.thrL`] = cf.thrL;
     out[`${id}.thrC`] = cf.thrC;
-    // Octave i's prepass only runs passes 0..i, so it only reads sharps[0..i].
-    // Zero the higher components so editing a coarser octave's edge node doesn't
-    // bust this finer stage's prepass cache (its sig is keyed on the full vec4).
-    out[`${id}.uSharps`] = sh.map((v, j) => (j <= i ? v : 0));
+    // A band with zero gains and thresholds is an exact identity no matter how
+    // it decomposes — zero its sharps too so the whole param set is zero and the
+    // host idles the prepass. Otherwise, octave o's chain only runs levels 0..o,
+    // so zero the higher levels: editing a coarser level's edge node must not
+    // bust this stage's prepass cache (its sig is keyed on the pass uniforms).
+    const idle = cf.gainL === 0 && cf.gainC === 0 && cf.thrL === 0 && cf.thrC === 0;
+    const masked = sh.map((v, j) => (!idle && j <= OCTAVES[i] ? v : 0));
+    out[`${id}.uSharpsA`] = masked.slice(0, 4);
+    out[`${id}.uSharpsB`] = masked.slice(4, 8);
   }
   return out;
 }

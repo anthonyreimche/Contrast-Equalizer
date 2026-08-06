@@ -44,28 +44,29 @@ export function cloneCurves(src: Curves): Curves {
 
 // ── GPU scales ───────────────────────────────────────────────────────────────
 //
-// The host's prepass framework caps at 4 ping-pong stages, so we run 4 wavelet
-// octaves (dilations 1,2,4,8 → ~5..33 px feature support). The 6-node curve is
-// continuous, so all six nodes still shape these four sampled scales. Scale i's
-// position on the curve follows darktable's get_scales(): t = 1 − (i+0.5)/N.
+// darktable runs up to eight à trous octaves; the host's prepass framework caps
+// us at four stages. Each stage therefore runs the full à trous chain (dilation
+// 2^j per level, darktable's ladder) down to a TRUE darktable octave, and we
+// expose octaves 0/2/4/6 — feature support 2·(2<<o)+1 ≈ 5/17/65/257 px — so the
+// four bands span darktable's fine-to-coarse range. Curve positions use
+// darktable's own get_scales() mapping t = 1 − (o+0.5)/i0 with i0 = 8 (its exact
+// value for any image whose long edge exceeds ~2.5k px), so a node on our x-axis
+// addresses the same physical feature size it does in darktable. The octaves in
+// between (1/3/5/7) pass through unadjusted; the continuous 6-node spline shapes
+// the four that are sampled.
 
-export const GPU_SCALES = 4;
-export const BAND_T: number[] = Array.from(
-  { length: GPU_SCALES },
-  (_, i) => 1 - (i + 0.5) / GPU_SCALES,
-); // [0.875, 0.625, 0.375, 0.125]
-
-// How far the four octaves reach. Most contrast-equalizer work (sharpen, clarity,
-// denoise) lives in the fine half, so the default is four even octaves. Users who
-// want big tonal / bloom moves can switch to the extended schedule in Preferences.
-// Values are the B3 kernel dilation applied at each pass (1<<scale would be the
-// even default); larger jumps reach coarser features at the cost of smoothness.
-export type DetailRange = "fine" | "extended";
-
-export const DILATIONS: Record<DetailRange, [number, number, number, number]> = {
-  fine: [1, 2, 4, 8], // ~5..33 px feature support
-  extended: [1, 4, 16, 64], // ~5..257 px — darktable's coarse reach
-};
+export const DT_SCALES = 8;
+export const OCTAVES: readonly number[] = [0, 2, 4, 6];
+export const GPU_SCALES = OCTAVES.length;
+/** Curve position of each exposed octave (darktable's t). */
+export const BAND_T: number[] = OCTAVES.map((o) => 1 - (o + 0.5) / DT_SCALES);
+// [0.9375, 0.6875, 0.4375, 0.1875]
+/** Curve position of every à trous chain level — the edge-sharpness curve is
+ *  sampled per decomposition level, exactly darktable's per-scale sharp[]. */
+export const LEVEL_T: number[] = Array.from(
+  { length: DT_SCALES },
+  (_, j) => 1 - (j + 0.5) / DT_SCALES,
+);
 
 // ── Spline ───────────────────────────────────────────────────────────────────
 
@@ -140,9 +141,8 @@ export function bandCoeffs(curves: Curves, scale: number, mix: number): BandCoef
   };
 }
 
-/** The four per-scale edge-sharpness weights (darktable: 0.0025·curve_s), packed
- *  as a vec4 the prepass indexes by pass (= scale). */
-export function sharps(curves: Curves, mix: number): [number, number, number, number] {
-  const s = BAND_T.map((t) => 0.0025 * mixed(curves, "s", t, mix));
-  return [s[0], s[1], s[2], s[3]];
+/** Edge-sharpness weight per à trous chain level (darktable: 0.0025·curve_s),
+ *  DT_SCALES entries the prepass indexes by pass (= level). */
+export function sharps(curves: Curves, mix: number): number[] {
+  return LEVEL_T.map((t) => 0.0025 * mixed(curves, "s", t, mix));
 }

@@ -1,27 +1,27 @@
-let Q = null, Z = null;
+let Z = null, ee = null;
 function ze(e) {
-  Q = e.react, Z = e;
+  Z = e.react, ee = e;
 }
 function M() {
-  if (!Z) throw new Error("[contrast-equalizer] api used before activate()");
+  if (!ee) throw new Error("[contrast-equalizer] api used before activate()");
+  return ee;
+}
+function Ie() {
+  if (!Z) throw new Error("[contrast-equalizer] runtime used before activate()");
   return Z;
 }
-function Ne() {
-  if (!Q) throw new Error("[contrast-equalizer] runtime used before activate()");
-  return Q;
+function D(e, t, ...o) {
+  return Ie().createElement(e, t, ...o);
 }
-function D(e, t, ...n) {
-  return Ne().createElement(e, t, ...n);
-}
-const E = 6, T = Array.from({ length: E }, (e, t) => t / (E - 1)), R = {
+const T = 6, A = Array.from({ length: T }, (e, t) => t / (T - 1)), R = {
   L: 0.5,
   c: 0.5,
   s: 0.5,
   Lt: 0,
   ct: 0
 };
-function j() {
-  const e = (t) => Array.from({ length: E }, () => t);
+function W() {
+  const e = (t) => Array.from({ length: T }, () => t);
   return {
     L: e(R.L),
     c: e(R.c),
@@ -30,79 +30,68 @@ function j() {
     ct: e(R.ct)
   };
 }
-function F(e) {
+function Y(e) {
   return { L: [...e.L], c: [...e.c], s: [...e.s], Lt: [...e.Lt], ct: [...e.ct] };
 }
-const z = 4, pe = Array.from(
-  { length: z },
-  (e, t) => 1 - (t + 0.5) / z
-), xe = {
-  fine: [1, 2, 4, 8],
-  // ~5..33 px feature support
-  extended: [1, 4, 16, 64]
-  // ~5..257 px — darktable's coarse reach
-};
+const te = 8, F = [0, 2, 4, 6], K = F.length, Ne = F.map((e) => 1 - (e + 0.5) / te), xe = Array.from(
+  { length: te },
+  (e, t) => 1 - (t + 0.5) / te
+);
 function O(e) {
   return e < 0 ? 0 : e > 1 ? 1 : e;
 }
-function ee(e, t) {
-  const n = e.length;
-  if (t <= T[0]) return O(e[0]);
-  if (t >= T[n - 1]) return O(e[n - 1]);
+function ne(e, t) {
+  const o = e.length;
+  if (t <= A[0]) return O(e[0]);
+  if (t >= A[o - 1]) return O(e[o - 1]);
   let a = 0;
-  for (; a < n - 1 && t > T[a + 1]; ) a++;
-  const r = T[a], d = T[a + 1], u = (t - r) / (d - r), h = e[Math.max(0, a - 1)], b = e[a], g = e[a + 1], L = e[Math.min(n - 1, a + 2)], _ = u * u, w = _ * u, c = 0.5 * (2 * b + (-h + g) * u + (2 * h - 5 * b + 4 * g - L) * _ + (-h + 3 * b - 3 * g + L) * w);
-  return O(c);
+  for (; a < o - 1 && t > A[a + 1]; ) a++;
+  const r = A[a], d = A[a + 1], c = (t - r) / (d - r), p = e[Math.max(0, a - 1)], v = e[a], f = e[a + 1], m = e[Math.min(o - 1, a + 2)], _ = c * c, w = _ * c, u = 0.5 * (2 * v + (-p + f) * c + (2 * p - 5 * v + 4 * f - m) * _ + (-p + 3 * v - 3 * f + m) * w);
+  return O(u);
 }
-function B(e, t, n, a) {
+function N(e, t, o, a) {
   const r = R[t];
-  return O(r + a * (ee(e[t], n) - r));
+  return O(r + a * (ne(e[t], o) - r));
 }
-function Be(e, t, n) {
-  const a = pe[t], r = B(e, "L", a, n), d = B(e, "c", a, n), u = B(e, "Lt", a, n), h = B(e, "ct", a, n), b = Math.pow(2, -7 * (1 - a));
+function He(e, t, o) {
+  const a = Ne[t], r = N(e, "L", a, o), d = N(e, "c", a, o), c = N(e, "Lt", a, o), p = N(e, "ct", a, o), v = Math.pow(2, -7 * (1 - a));
   return {
     gainL: 2 * r * (2 * r) - 1,
     gainC: 2 * d * (2 * d) - 1,
-    thrL: b * 10 * u,
-    thrC: b * 20 * h
+    thrL: v * 10 * c,
+    thrC: v * 20 * p
   };
 }
-function He(e, t) {
-  const n = pe.map((a) => 25e-4 * B(e, "s", a, t));
-  return [n[0], n[1], n[2], n[3]];
+function qe(e, t) {
+  return xe.map((o) => 25e-4 * N(e, "s", o, t));
 }
-const K = "contrast-equalizer";
+const V = "contrast-equalizer";
 function de(e) {
   let t = 0;
-  for (let n = 0; n < e.length; n++) t = (t << 5) - t + e.charCodeAt(n) | 0;
+  for (let o = 0; o < e.length; o++) t = (t << 5) - t + e.charCodeAt(o) | 0;
   return (t >>> 0).toString(36).slice(0, 4);
 }
-const qe = ["fine", "medium", "coarse", "coarsest"], Ge = (() => {
+const me = ["fine", "medium", "coarse", "coarsest"], Ge = (() => {
   const e = [], t = /* @__PURE__ */ new Set();
-  for (let n = 0; n < z; n++) {
-    const a = `${K}.${qe[n] ?? `octave${n}`}`;
+  for (let o = 0; o < K; o++) {
+    const a = `${V}.${me[o] ?? `octave${o}`}`;
     let r = 0, d = a;
     for (; t.has(de(d)) && r < 1e3; ) d = `${a}-${++r}`;
     t.add(de(d)), e.push(d);
   }
   return e;
-})(), ne = (e) => Ge[e], P = "100.0";
-function Ye(e) {
-  const [t, n, a, r] = e;
-  return `
+})(), oe = (e) => Ge[e], P = "100.0", Ue = `
 // B3 spline 1D weights [1,4,6,4,1]/16.
 float ceB3(int d) { d = d < 0 ? -d : d; return d == 0 ? 0.375 : (d == 1 ? 0.25 : 0.0625); }
-// Per-scale edge sharpness (darktable 'sharp'), one component per octave.
+// Per-level edge sharpness (darktable 'sharp'): levels 0-3 in A, 4-7 in B.
 float ceSharp(int i) {
-  return i == 0 ? uSharps.x : (i == 1 ? uSharps.y : (i == 2 ? uSharps.z : uSharps.w));
+  vec4 v = i < 4 ? uSharpsA : uSharpsB;
+  int k = i < 4 ? i : i - 4;
+  return k == 0 ? v.x : (k == 1 ? v.y : (k == 2 ? v.z : v.w));
 }
-// Kernel dilation per pass (the detail-range schedule).
-int ceDil(int j) { return j == 0 ? ${t} : (j == 1 ? ${n} : (j == 2 ? ${a} : ${r})); }
-`;
-}
-const Ue = `
+`, Xe = `
 {
-  int mult = ceDil(uPassIndex);
+  float mult = exp2(float(uPassIndex));
   float sharp = ceSharp(uPassIndex);
   vec3 ctr = c;
   float Lc = luma(ctr) * ${P};
@@ -111,7 +100,7 @@ const Ue = `
   vec3  sumC = vec3(0.0); float wC = 0.0;
   for (int dy = -2; dy <= 2; dy++) {
     for (int dx = -2; dx <= 2; dx++) {
-      vec2 off = vec2(float(dx), float(dy)) * float(mult) * uTexel;
+      vec2 off = vec2(float(dx), float(dy)) * mult * uTexel;
       vec3 s = readPrev(vUv + off);
       float f = ceB3(dx) * ceB3(dy);
       float Ls = luma(s) * ${P};
@@ -135,7 +124,7 @@ const Ue = `
   // it. (On the RGBA16F path this just costs ~1 bit of precision.)
   c = (uPassIndex == uPassCount - 1) ? ((ctr - coarse) * 0.5 + 0.5) : coarse;
 }
-`, Xe = `
+`, Ye = `
 {
   vec3 d = (stageResult - 0.5) * 2.0;      // decode the bias-encoded signed detail
   float dL = luma(d);
@@ -149,70 +138,75 @@ const Ue = `
   vec3  addC = (1.0 + gainC) * coreC - dC;
   lin += vec3(addL) + addC;
 }
-`, Fe = [
+`, Oe = [
   { key: "gainL", glslType: "float", default: 0, label: "Luma gain" },
   { key: "gainC", glslType: "float", default: 0, label: "Chroma gain" },
   { key: "thrL", glslType: "float", default: 0, label: "Luma threshold" },
   { key: "thrC", glslType: "float", default: 0, label: "Chroma threshold" }
 ];
-function Oe(e, t) {
+function We(e) {
   return {
-    glsl: Ue,
-    helpers: Ye(t),
-    // scale i needs i+1 octaves of the chain to reach its detail level.
-    iterations: e + 1,
-    uniforms: [{ key: "uSharps", glslType: "vec4", default: [0, 0, 0, 0] }]
+    glsl: Xe,
+    helpers: Ue,
+    // Reaching octave o's detail takes the full chain: o+1 levels from the source.
+    iterations: F[e] + 1,
+    uniforms: [
+      { key: "uSharpsA", glslType: "vec4", default: [0, 0, 0, 0] },
+      { key: "uSharpsB", glslType: "vec4", default: [0, 0, 0, 0] }
+    ]
   };
 }
-function je(e, t) {
+function Fe(e) {
   return {
-    id: ne(e),
-    name: `Contrast Equalizer · scale ${e}`,
+    id: oe(e),
+    name: `Contrast Equalizer · ${me[e] ?? `band ${e}`}`,
     // Scene-linear, after exposure/white balance; bands are additive so their
     // order among themselves doesn't matter.
     phase: "scene-linear",
     priority: 70 + e,
-    glsl: Xe,
-    uniforms: Fe,
-    passes: [Oe(e, t)]
+    glsl: Ye,
+    uniforms: Oe,
+    passes: [We(e)]
   };
 }
-function Ke(e) {
-  return Array.from({ length: z }, (t, n) => je(n, e));
+function Ke() {
+  return Array.from({ length: K }, (e, t) => Fe(t));
 }
-const me = ["L", "c", "s", "Lt", "ct"], be = (e) => `${K}.curve.${e}`, Le = `${K}.mix`, oe = 1;
-function We(e) {
-  return Array.isArray(e) && e.length === E && e.every((t) => typeof t == "number");
-}
+const ge = ["L", "c", "s", "Lt", "ct"], Le = (e) => `${V}.curve.${e}`, ve = `${V}.mix`, re = 1;
 function Ve(e) {
-  const t = j(), n = F(t);
-  for (const a of me) {
-    const r = e[be(a)];
-    We(r) && (n[a] = [...r]);
+  return Array.isArray(e) && e.length === T && e.every((t) => typeof t == "number");
+}
+function je(e) {
+  const t = W(), o = Y(t);
+  for (const a of ge) {
+    const r = e[Le(a)];
+    Ve(r) && (o[a] = [...r]);
   }
-  return n;
+  return o;
 }
 function Je(e) {
-  const t = e[Le];
-  return typeof t == "number" ? t : oe;
+  const t = e[ve];
+  return typeof t == "number" ? t : re;
 }
-function ve(e, t) {
-  const n = {};
-  for (const r of me) n[be(r)] = [...e[r]];
-  n[Le] = t;
-  const a = He(e, t);
-  for (let r = 0; r < z; r++) {
-    const d = ne(r), u = Be(e, r, t);
-    n[`${d}.gainL`] = u.gainL, n[`${d}.gainC`] = u.gainC, n[`${d}.thrL`] = u.thrL, n[`${d}.thrC`] = u.thrC, n[`${d}.uSharps`] = a.map((h, b) => b <= r ? h : 0);
+function be(e, t) {
+  const o = {};
+  for (const r of ge) o[Le(r)] = [...e[r]];
+  o[ve] = t;
+  const a = qe(e, t);
+  for (let r = 0; r < K; r++) {
+    const d = oe(r), c = He(e, r, t);
+    o[`${d}.gainL`] = c.gainL, o[`${d}.gainC`] = c.gainC, o[`${d}.thrL`] = c.thrL, o[`${d}.thrC`] = c.thrC;
+    const p = c.gainL === 0 && c.gainC === 0 && c.thrL === 0 && c.thrC === 0, v = a.map((f, m) => !p && m <= F[r] ? f : 0);
+    o[`${d}.uSharpsA`] = v.slice(0, 4), o[`${d}.uSharpsB`] = v.slice(4, 8);
   }
-  return n;
+  return o;
 }
 const $ = (e) => {
-  const t = j();
-  for (const n of Object.keys(e)) t[n] = e[n].slice();
+  const t = W();
+  for (const o of Object.keys(e)) t[o] = e[o].slice();
   return t;
-}, ue = [
-  { id: "flat", label: "Flat (reset)", build: () => j() },
+}, fe = [
+  { id: "flat", label: "Flat (reset)", build: () => W() },
   {
     id: "sharpen",
     label: "Sharpen",
@@ -257,152 +251,152 @@ const $ = (e) => {
       ct: [0, 0, 0.12, 0.4, 0.65, 0.85]
     })
   }
-], fe = [
+], he = [
   { key: "luma", label: "luma", primary: "L", thr: "Lt", color: "#dcdcdc", thrColor: "#5a8fd0" },
   { key: "chroma", label: "chroma", primary: "c", thr: "ct", color: "#d8b25a", thrColor: "#c06a9a" },
   { key: "edges", label: "edges", primary: "s", thr: null, color: "#6ac08a", thrColor: null }
-], f = 10, Qe = 12, Ze = 3;
-function he(e) {
+], h = 10, Qe = 12, Ze = 3;
+function pe(e) {
   return e < 0 ? 0 : e > 1 ? 1 : e;
 }
-function et(e, t, n, a, r, d, u) {
-  const h = t - 2 * f, b = n - 2 * f, g = (c) => f + c * h, L = (c) => f + (1 - c) * b;
-  e.clearRect(0, 0, t, n), e.strokeStyle = "rgba(128,128,128,0.16)", e.lineWidth = 1;
-  for (let c = 0; c < E; c++)
-    e.beginPath(), e.moveTo(g(T[c]), f), e.lineTo(g(T[c]), f + b), e.stroke();
-  for (let c = 0; c <= 4; c++) {
-    const C = f + c / 4 * b;
-    e.beginPath(), e.moveTo(f, C), e.lineTo(f + h, C), e.stroke();
+function et(e, t, o, a, r, d, c) {
+  const p = t - 2 * h, v = o - 2 * h, f = (u) => h + u * p, m = (u) => h + (1 - u) * v;
+  e.clearRect(0, 0, t, o), e.strokeStyle = "rgba(128,128,128,0.16)", e.lineWidth = 1;
+  for (let u = 0; u < T; u++)
+    e.beginPath(), e.moveTo(f(A[u]), h), e.lineTo(f(A[u]), h + v), e.stroke();
+  for (let u = 0; u <= 4; u++) {
+    const C = h + u / 4 * v;
+    e.beginPath(), e.moveTo(h, C), e.lineTo(h + p, C), e.stroke();
   }
-  e.strokeStyle = "rgba(160,160,160,0.4)", e.lineWidth = 1, e.beginPath(), e.moveTo(f, L(0.5)), e.lineTo(f + h, L(0.5)), e.stroke();
-  const _ = (c, C, H, S) => {
+  e.strokeStyle = "rgba(160,160,160,0.4)", e.lineWidth = 1, e.beginPath(), e.moveTo(h, m(0.5)), e.lineTo(h + p, m(0.5)), e.stroke();
+  const _ = (u, C, x, S) => {
     e.beginPath();
-    for (let p = 0; p <= h; p++) {
-      const m = p / h, A = ee(c, m);
-      p === 0 ? e.moveTo(g(m), L(A)) : e.lineTo(g(m), L(A));
+    for (let g = 0; g <= p; g++) {
+      const L = g / p, k = ne(u, L);
+      g === 0 ? e.moveTo(f(L), m(k)) : e.lineTo(f(L), m(k));
     }
     {
-      e.lineTo(g(1), L(S)), e.lineTo(g(0), L(S)), e.closePath(), e.fillStyle = C, e.globalAlpha = 0.14, e.fill(), e.globalAlpha = 1, e.beginPath();
-      for (let p = 0; p <= h; p++) {
-        const m = p / h, A = ee(c, m);
-        p === 0 ? e.moveTo(g(m), L(A)) : e.lineTo(g(m), L(A));
+      e.lineTo(f(1), m(S)), e.lineTo(f(0), m(S)), e.closePath(), e.fillStyle = C, e.globalAlpha = 0.14, e.fill(), e.globalAlpha = 1, e.beginPath();
+      for (let g = 0; g <= p; g++) {
+        const L = g / p, k = ne(u, L);
+        g === 0 ? e.moveTo(f(L), m(k)) : e.lineTo(f(L), m(k));
       }
     }
     e.strokeStyle = C, e.lineWidth = 1.6, e.stroke();
   };
   r.thr && r.thrColor && _(a[r.thr], r.thrColor, !0, 0), _(a[r.primary], r.color, !0, 0.5);
-  const w = (c, C) => {
-    const H = a[c];
-    for (let S = 0; S < E; S++) {
-      const p = g(T[S]), m = L(H[S]);
-      d && d.channel === c && d.index === S && (e.strokeStyle = "#ffffff", e.lineWidth = 1.5, e.beginPath(), e.arc(p, m, 5.5, 0, Math.PI * 2), e.stroke()), e.fillStyle = C, e.beginPath(), e.arc(p, m, 3, 0, Math.PI * 2), e.fill();
+  const w = (u, C) => {
+    const x = a[u];
+    for (let S = 0; S < T; S++) {
+      const g = f(A[S]), L = m(x[S]);
+      d && d.channel === u && d.index === S && (e.strokeStyle = "#ffffff", e.lineWidth = 1.5, e.beginPath(), e.arc(g, L, 5.5, 0, Math.PI * 2), e.stroke()), e.fillStyle = C, e.beginPath(), e.arc(g, L, 3, 0, Math.PI * 2), e.fill();
     }
   };
-  r.thr && r.thrColor && w(r.thr, r.thrColor), w(r.primary, r.color), u && (e.strokeStyle = "rgba(255,255,255,0.55)", e.lineWidth = 1, e.beginPath(), e.arc(u.x, u.y, u.r, 0, Math.PI * 2), e.stroke()), e.fillStyle = "rgba(170,170,170,0.7)", e.font = "9px sans-serif", e.textBaseline = "bottom", e.textAlign = "left", e.fillText("coarse", f + 1, n - 1), e.textAlign = "right", e.fillText("fine", f + h - 1, n - 1);
+  r.thr && r.thrColor && w(r.thr, r.thrColor), w(r.primary, r.color), c && (e.strokeStyle = "rgba(255,255,255,0.55)", e.lineWidth = 1, e.beginPath(), e.arc(c.x, c.y, c.r, 0, Math.PI * 2), e.stroke()), e.fillStyle = "rgba(170,170,170,0.7)", e.font = "9px sans-serif", e.textBaseline = "bottom", e.textAlign = "left", e.fillText("coarse", h + 1, o - 1), e.textAlign = "right", e.fillText("fine", h + p - 1, o - 1);
 }
 function tt() {
-  const e = M().react, { useState: t, useRef: n, useEffect: a } = e, r = M().stores.useDevelopStore, d = M().components.Slider, u = M().ui;
-  if (!u)
+  const e = M().react, { useState: t, useRef: o, useEffect: a } = e, r = M().stores.useDevelopStore, d = M().components.Slider, c = M().ui;
+  if (!c)
     return D(
       "div",
       { style: { padding: "10px", fontSize: "11px", color: "var(--color-text-muted)" } },
       "Update Safelight to use this panel."
     );
-  const { SegmentedControl: h, Select: b } = u, g = r((o) => o.paramBag), L = r(
+  const { SegmentedControl: p, Select: v } = c, f = r((n) => n.paramBag), m = r(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (o) => o.setDynParams
-  ), _ = r((o) => o.commitEdit), w = Ve(g), c = Je(g), [C, H] = t("luma"), [S, p] = t(null), [m, A] = t(() => M().settings.get("coupling", 1)), [y, ye] = t({ w: 240, h: 150 }), [q, re] = t(null), se = n(null), W = n(null), N = n(null), ae = n(m);
-  ae.current = m;
-  const x = fe.find((o) => o.key === C);
+    (n) => n.setDynParams
+  ), _ = r((n) => n.commitEdit), w = je(f), u = Je(f), [C, x] = t("luma"), [S, g] = t(null), [L, k] = t(() => M().settings.get("coupling", 1)), [y, ye] = t({ w: 240, h: 150 }), [H, se] = t(null), ae = o(null), j = o(null), z = o(null), le = o(L);
+  le.current = L;
+  const I = he.find((n) => n.key === C);
   a(() => {
-    const o = se.current;
-    if (!o) return;
+    const n = ae.current;
+    if (!n) return;
     const s = new ResizeObserver((i) => {
       const l = i[0].contentRect.width;
       l > 0 && ye({ w: Math.round(l), h: Math.round(l * 0.62) });
     });
-    return s.observe(o), () => s.disconnect();
+    return s.observe(n), () => s.disconnect();
   }, []), a(() => {
-    const o = W.current;
-    if (!o) return;
+    const n = j.current;
+    if (!n) return;
     const s = (i) => {
       i.preventDefault();
-      const l = i.deltaY < 0 ? 1 : -1, v = Math.min(E - 1, Math.max(0.4, ae.current + l * 0.25));
-      A(v), M().settings.set("coupling", v);
+      const l = i.deltaY < 0 ? 1 : -1, b = Math.min(T - 1, Math.max(0.4, le.current + l * 0.25));
+      k(b), M().settings.set("coupling", b);
     };
-    return o.addEventListener("wheel", s, { passive: !1 }), () => o.removeEventListener("wheel", s);
+    return n.addEventListener("wheel", s, { passive: !1 }), () => n.removeEventListener("wheel", s);
   }, []), a(() => {
-    const o = W.current;
-    if (!o) return;
+    const n = j.current;
+    if (!n) return;
     const s = window.devicePixelRatio || 1;
-    o.width = y.w * s, o.height = y.h * s;
-    const i = o.getContext("2d");
+    n.width = y.w * s, n.height = y.h * s;
+    const i = n.getContext("2d");
     if (!i) return;
     i.setTransform(s, 0, 0, s, 0, 0);
-    const l = y.w - 2 * f, v = m / (E - 1) * l;
+    const l = y.w - 2 * h, b = L / (T - 1) * l;
     et(
       i,
       y.w,
       y.h,
       w,
-      x,
+      I,
       S,
-      q ? { x: q.x, y: q.y, r: v } : null
+      H ? { x: H.x, y: H.y, r: b } : null
     );
-  }, [g, C, S, m, y, q]);
-  const V = (o) => {
-    const s = o.currentTarget.getBoundingClientRect(), i = s.width > 0 ? y.w / s.width : 1, l = s.height > 0 ? y.h / s.height : 1;
-    return { x: (o.clientX - s.left) * i, y: (o.clientY - s.top) * l };
-  }, Ce = y.w - 2 * f, le = y.h - 2 * f, Se = (o) => he(1 - (o - f) / le), we = (o, s) => [
-    f + T[s] * Ce,
-    f + (1 - w[o][s]) * le
-  ], ie = (o, s) => {
-    const i = x.thr ? [x.primary, x.thr] : [x.primary];
-    let l = null, v = Qe;
-    for (const I of i)
-      for (let k = 0; k < E; k++) {
-        const [U, J] = we(I, k), X = Math.hypot(U - o, J - s);
-        X <= v && (v = X, l = { channel: I, index: k });
+  }, [f, C, S, L, y, H]);
+  const J = (n) => {
+    const s = n.currentTarget.getBoundingClientRect(), i = s.width > 0 ? y.w / s.width : 1, l = s.height > 0 ? y.h / s.height : 1;
+    return { x: (n.clientX - s.left) * i, y: (n.clientY - s.top) * l };
+  }, Ce = y.w - 2 * h, ie = y.h - 2 * h, Se = (n) => pe(1 - (n - h) / ie), we = (n, s) => [
+    h + A[s] * Ce,
+    h + (1 - w[n][s]) * ie
+  ], ce = (n, s) => {
+    const i = I.thr ? [I.primary, I.thr] : [I.primary];
+    let l = null, b = Qe;
+    for (const B of i)
+      for (let E = 0; E < T; E++) {
+        const [U, Q] = we(B, E), X = Math.hypot(U - n, Q - s);
+        X <= b && (b = X, l = { channel: B, index: E });
       }
     return l;
-  }, G = (o, s = c) => L(ve(o, s)), Y = () => _("Contrast Equalizer"), Pe = (o, s, i) => {
-    const l = s[o.channel], v = i - l[o.index], I = Math.max(0.18, m), k = l.map((J, X) => {
-      const ce = (X - o.index) / I, Me = Math.exp(-0.5 * ce * ce);
-      return he(J + v * Me);
-    }), U = F(s);
-    U[o.channel] = k, G(U);
-  }, Te = (o) => {
-    const { x: s, y: i } = V(o), l = ie(s, i);
-    l && (o.currentTarget.setPointerCapture(o.pointerId), N.current = { hit: l, snapshot: F(w), startX: s, startY: i, moved: !1 }, p(l));
-  }, Ee = (o) => {
-    const { x: s, y: i } = V(o);
-    re({ x: s, y: i });
-    const l = N.current;
+  }, q = (n, s = u) => m(be(n, s)), G = () => _("Contrast Equalizer"), Pe = (n, s, i) => {
+    const l = s[n.channel], b = i - l[n.index], B = Math.max(0.18, L), E = l.map((Q, X) => {
+      const ue = (X - n.index) / B, Me = Math.exp(-0.5 * ue * ue);
+      return pe(Q + b * Me);
+    }), U = Y(s);
+    U[n.channel] = E, q(U);
+  }, Ae = (n) => {
+    const { x: s, y: i } = J(n), l = ce(s, i);
+    l && (n.currentTarget.setPointerCapture(n.pointerId), z.current = { hit: l, snapshot: Y(w), startX: s, startY: i, moved: !1 }, g(l));
+  }, Te = (n) => {
+    const { x: s, y: i } = J(n);
+    se({ x: s, y: i });
+    const l = z.current;
     l && (!l.moved && Math.hypot(s - l.startX, i - l.startY) < Ze || (l.moved = !0, Pe(l.hit, l.snapshot, Se(i))));
-  }, Ae = () => {
-    const o = N.current;
-    N.current = null, o && o.moved && Y();
   }, ke = () => {
-    N.current || re(null);
-  }, De = (o) => {
-    const { x: s, y: i } = V(o), l = ie(s, i);
+    const n = z.current;
+    z.current = null, n && n.moved && G();
+  }, Ee = () => {
+    z.current || se(null);
+  }, De = (n) => {
+    const { x: s, y: i } = J(n), l = ce(s, i);
     if (!l) return;
-    const v = F(w);
-    v[l.channel] = v[l.channel].map(
-      (I, k) => k === l.index ? R[l.channel] : I
-    ), G(v), Y();
-  }, $e = D(h, {
+    const b = Y(w);
+    b[l.channel] = b[l.channel].map(
+      (B, E) => E === l.index ? R[l.channel] : B
+    ), q(b), G();
+  }, $e = D(p, {
     value: C,
     size: "sm",
-    options: fe.map((o) => ({ value: o.key, label: o.label })),
-    onChange: (o) => {
-      H(o), p(null);
+    options: he.map((n) => ({ value: n.key, label: n.label })),
+    onChange: (n) => {
+      x(n), g(null);
     }
   }), _e = D(
     "div",
-    { ref: se, style: { width: "100%" } },
+    { ref: ae, style: { width: "100%" } },
     D("canvas", {
-      ref: W,
+      ref: j,
       style: {
         width: y.w,
         height: y.h,
@@ -412,24 +406,24 @@ function tt() {
         cursor: "ns-resize",
         display: "block"
       },
-      onPointerDown: Te,
-      onPointerMove: Ee,
-      onPointerUp: Ae,
-      onPointerLeave: ke,
+      onPointerDown: Ae,
+      onPointerMove: Te,
+      onPointerUp: ke,
+      onPointerLeave: Ee,
       onDoubleClick: De
     })
-  ), Re = D(b, {
+  ), Re = D(v, {
     value: "",
     style: { width: "100%" },
-    onChange: (o) => {
-      const s = ue.find((i) => i.id === o);
-      s && (G(s.build()), Y(), p(null));
+    onChange: (n) => {
+      const s = fe.find((i) => i.id === n);
+      s && (q(s.build()), G(), g(null));
     },
     options: [
       { value: "", label: "Presets…" },
-      ...ue.map((o) => ({ value: o.id, label: o.label }))
+      ...fe.map((n) => ({ value: n.id, label: n.label }))
     ]
-  }), Ie = D(
+  }), Be = D(
     "p",
     { style: { margin: "2px 0 0", fontSize: 10, color: "var(--color-text-muted)", lineHeight: 1.35 } },
     "Drag nodes vertically · wheel sets the influence radius · double-click resets a node."
@@ -441,62 +435,41 @@ function tt() {
     _e,
     D(d, {
       label: "Mix",
-      value: c,
+      value: u,
       min: 0,
       max: 3,
       step: 0.01,
-      defaultValue: oe,
-      onChange: (o) => G(w, o),
-      onCommit: Y
+      defaultValue: re,
+      onChange: (n) => q(w, n),
+      onCommit: G
     }),
     Re,
-    Ie
+    Be
   );
 }
-const nt = `${K}.panel`, te = "range";
+const nt = `${V}.panel`;
 function ot(e) {
-  return e.settings.get(te, "fine") === "extended" ? "extended" : "fine";
-}
-function ge(e, t) {
-  for (const n of Ke(xe[t])) e.registerProcessingStage(n);
+  const t = e.stores.useDevelopStore.getState();
+  t.setDynParams(be(W(), re)), t.commitEdit("Contrast Equalizer reset");
 }
 function rt(e) {
-  const t = e.stores.useDevelopStore.getState();
-  t.setDynParams(ve(j(), oe)), t.commitEdit("Contrast Equalizer reset");
-}
-function st(e) {
-  ze(e), ge(e, ot(e)), e.registerSettings({
-    title: "Contrast Equalizer",
-    fields: [
-      {
-        key: te,
-        label: "Detail range",
-        hint: "How far the four octaves reach. 'Fine' (default) covers ~5–33 px — best for sharpening, clarity and denoise. 'Extended' stretches the coarse end to ~257 px for big local-contrast / bloom moves, at some loss of smoothness.",
-        type: "select",
-        default: "fine",
-        options: [
-          { value: "fine", label: "Fine (sharpen / clarity / denoise)" },
-          { value: "extended", label: "Extended (adds coarse / bloom)" }
-        ]
-      }
-    ]
-  }), e.registerPanel({
+  ze(e);
+  for (const t of Ke()) e.registerProcessingStage(t);
+  e.registerPanel({
     id: nt,
     title: "Contrast Equalizer",
     component: tt,
     defaultDock: { module: "develop", direction: "right", order: 7, width: 268 },
-    onReset: () => rt(e)
-  }), e.settings.onChange((t, n) => {
-    t === te && ge(e, n === "extended" ? "extended" : "fine");
+    onReset: () => ot(e)
   });
 }
-function at() {
+function st() {
   const e = globalThis.safelight;
   if (e)
-    for (let t = 0; t < z; t++) e.unregisterProcessingStage(ne(t));
+    for (let t = 0; t < K; t++) e.unregisterProcessingStage(oe(t));
 }
 export {
-  st as activate,
-  at as deactivate
+  rt as activate,
+  st as deactivate
 };
 //# sourceMappingURL=index.js.map

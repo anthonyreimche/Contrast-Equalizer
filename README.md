@@ -48,24 +48,24 @@ Faithful to darktable's `atrous` module (`src/iop/atrous.c`, `src/common/eaw.c`)
 ### How it maps onto SafeLight
 
 SafeLight runs extension wavelet passes through its GPU pre-pass framework, which
-caps at four ping-pong stages. So the equalizer runs **four wavelet octaves**
-(feature support ≈ 5–33 px), each a separate stage that re-decomposes from the
-source — which keeps the bands independent and lets the boosts/thresholds apply
+caps at four ping-pong stages. So the equalizer exposes **four of darktable's
+eight wavelet octaves** — octaves 0, 2, 4 and 6, feature support ≈ 5 / 17 / 65 /
+257 px — each a separate stage that runs the true à trous chain (dilation
+doubling per level, exactly darktable's ladder) from the source down to its
+octave. The curve's x-axis uses darktable's own scale mapping, so a node at the
+coarse end drives the same big, soft structures it does in darktable, and a lift
+there reads as a gentle tonal lift, not a clarity punch. Decomposing every band
+from the source keeps the bands independent and lets the boosts/thresholds apply
 *inline*, so dragging the luma/chroma curves is interactive (the wavelet
 decomposition is cached and only recomputed when the **edges** curve or the image
-changes). The six-node curves still shape all four sampled scales because the
+changes). The six-node curves still shape all four sampled octaves because the
 spline is continuous.
-
-**Detail range (preference).** Most contrast-equalizer work lives in the fine
-half, so the default schedule is four even octaves (~5–33 px). If you want the big
-coarse moves darktable's extra scales give you (local-contrast / bloom), switch
-**Preferences ▸ Extensions ▸ Contrast Equalizer ▸ Detail range** to *Extended*
-(~5–257 px), at some loss of smoothness in the coarsest band.
 
 Differences from darktable to be aware of:
 
-- darktable can run up to eight scales (much coarser features); here it's four
-  (with the Detail-range preference above choosing how far they reach).
+- darktable adjusts all eight octaves; here the four sampled ones respond and the
+  in-between octaves (9 / 33 / 129 / 513 px) pass through unchanged, so very
+  broad moves come out slightly gentler than darktable's total.
 - Detail is computed in linear scene RGB split into luma + chroma (darktable works
   in Lab); the luma weight is taken to a 0–100 scale so the thresholds and edge
   weights keep darktable's numeric feel.

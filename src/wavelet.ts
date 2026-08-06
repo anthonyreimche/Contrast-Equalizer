@@ -1,12 +1,13 @@
 // The GPU side: an edge-aware à trous wavelet contrast equalizer built on the
 // host's processing-stage + prepass framework.
 //
-// One STAGE per wavelet octave (4 of them, the host's prepass cap). Each stage's
-// prepass independently re-runs the à trous chain from the source — pass j blurs
-// the previous coarse level with the B3-spline kernel dilated by 2^j (an edge-
-// aware blur, darktable's eaw_decompose) — and its LAST pass emits that octave's
-// detail (coarse_i − coarse_{i+1}), bias-encoded into [0,1] so the sign survives
-// the host's RGBA8 ping-pong fallback. Because every stage decomposes from the
+// One STAGE per exposed wavelet octave (4 of them, the host's prepass cap; they
+// expose darktable octaves 0/2/4/6 — see model.ts). Each stage's prepass
+// independently re-runs the à trous chain from the source — pass j blurs the
+// previous coarse level with the B3-spline kernel dilated by 2^j (an edge-aware
+// blur, darktable's eaw_decompose) — and its LAST pass emits its octave's detail
+// (coarse_o − coarse_{o+1}), bias-encoded into [0,1] so the sign survives the
+// host's RGBA8 ping-pong fallback. Because every stage decomposes from the
 // immutable source, the bands are independent: the inline glsl decodes each
 // octave's detail and sums its boosted, soft-cored change back onto `lin`
 // (darktable's eaw_synthesize, reorganised as `lin += (1+gain)·core(detail) −
@@ -22,7 +23,7 @@
 // Reference: darktable src/common/eaw.c (eaw_decompose / eaw_synthesize).
 
 import type { ProcessingStageContribution, StagePass, UniformDeclaration } from "./safelight";
-import { GPU_SCALES } from "./model";
+import { GPU_SCALES, OCTAVES } from "./model";
 
 export const BASE_ID = "contrast-equalizer";
 
@@ -64,28 +65,23 @@ const CE_SCALE = "100.0";
 
 // ── Prepass: one edge-aware à trous step per iteration ───────────────────────
 
-// The dilation schedule (one B3 dilation per pass) is baked in per detail-range
-// so switching range just re-registers the stages (a shader recompile, rare).
-function passHelpers(dilations: readonly number[]): string {
-  const [d0, d1, d2, d3] = dilations;
-  return `
+const PASS_HELPERS = `
 // B3 spline 1D weights [1,4,6,4,1]/16.
 float ceB3(int d) { d = d < 0 ? -d : d; return d == 0 ? 0.375 : (d == 1 ? 0.25 : 0.0625); }
-// Per-scale edge sharpness (darktable 'sharp'), one component per octave.
+// Per-level edge sharpness (darktable 'sharp'): levels 0-3 in A, 4-7 in B.
 float ceSharp(int i) {
-  return i == 0 ? uSharps.x : (i == 1 ? uSharps.y : (i == 2 ? uSharps.z : uSharps.w));
+  vec4 v = i < 4 ? uSharpsA : uSharpsB;
+  int k = i < 4 ? i : i - 4;
+  return k == 0 ? v.x : (k == 1 ? v.y : (k == 2 ? v.z : v.w));
 }
-// Kernel dilation per pass (the detail-range schedule).
-int ceDil(int j) { return j == 0 ? ${d0} : (j == 1 ? ${d1} : (j == 2 ? ${d2} : ${d3})); }
 `;
-}
 
 // `c` enters as readPrev(vUv) = the coarse approximation at this level. We blur it
 // (edge-aware, dilated by the schedule) to the next coarser level; the final pass
 // instead emits this octave's detail = coarse − nextCoarse.
 const PASS_GLSL = `
 {
-  int mult = ceDil(uPassIndex);
+  float mult = exp2(float(uPassIndex));
   float sharp = ceSharp(uPassIndex);
   vec3 ctr = c;
   float Lc = luma(ctr) * ${CE_SCALE};
@@ -94,7 +90,7 @@ const PASS_GLSL = `
   vec3  sumC = vec3(0.0); float wC = 0.0;
   for (int dy = -2; dy <= 2; dy++) {
     for (int dx = -2; dx <= 2; dx++) {
-      vec2 off = vec2(float(dx), float(dy)) * float(mult) * uTexel;
+      vec2 off = vec2(float(dx), float(dy)) * mult * uTexel;
       vec3 s = readPrev(vUv + off);
       float f = ceB3(dx) * ceB3(dy);
       float Ls = luma(s) * ${CE_SCALE};
@@ -152,31 +148,34 @@ const INLINE_UNIFORMS: UniformDeclaration[] = [
   { key: "thrC", glslType: "float", default: 0, label: "Chroma threshold" },
 ];
 
-function bandPass(scale: number, dilations: readonly number[]): StagePass {
+function bandPass(band: number): StagePass {
   return {
     glsl: PASS_GLSL,
-    helpers: passHelpers(dilations),
-    // scale i needs i+1 octaves of the chain to reach its detail level.
-    iterations: scale + 1,
-    uniforms: [{ key: "uSharps", glslType: "vec4", default: [0, 0, 0, 0] }],
+    helpers: PASS_HELPERS,
+    // Reaching octave o's detail takes the full chain: o+1 levels from the source.
+    iterations: OCTAVES[band] + 1,
+    uniforms: [
+      { key: "uSharpsA", glslType: "vec4", default: [0, 0, 0, 0] },
+      { key: "uSharpsB", glslType: "vec4", default: [0, 0, 0, 0] },
+    ],
   };
 }
 
-/** The processing stage for one wavelet octave, for the given dilation schedule. */
-export function bandStage(scale: number, dilations: readonly number[]): ProcessingStageContribution {
+/** The processing stage for one exposed wavelet octave. */
+export function bandStage(band: number): ProcessingStageContribution {
   return {
-    id: bandStageId(scale),
-    name: `Contrast Equalizer · scale ${scale}`,
+    id: bandStageId(band),
+    name: `Contrast Equalizer · ${SCALE_NAMES[band] ?? `band ${band}`}`,
     // Scene-linear, after exposure/white balance; bands are additive so their
     // order among themselves doesn't matter.
     phase: "scene-linear",
-    priority: 70 + scale,
+    priority: 70 + band,
     glsl: INLINE_GLSL,
     uniforms: INLINE_UNIFORMS,
-    passes: [bandPass(scale, dilations)],
+    passes: [bandPass(band)],
   };
 }
 
-export function allBandStages(dilations: readonly number[]): ProcessingStageContribution[] {
-  return Array.from({ length: GPU_SCALES }, (_, i) => bandStage(i, dilations));
+export function allBandStages(): ProcessingStageContribution[] {
+  return Array.from({ length: GPU_SCALES }, (_, i) => bandStage(i));
 }
