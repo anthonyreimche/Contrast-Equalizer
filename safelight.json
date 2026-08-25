@@ -1,13 +1,13 @@
 {
   "id": "contrast-equalizer",
   "name": "Contrast Equalizer",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A faithful port of darktable's contrast equalizer — multiscale wavelet local-contrast, sharpening and denoise with luma / chroma / edges curves. For photographers coming from darktable who miss this tool.",
   "author": "Anthony Reimche",
   "main": "dist/index.js",
   "license": "GPL-3.0-or-later",
   "categories": ["Develop", "Detail", "Color"],
   "keywords": ["darktable", "contrast-equalizer", "wavelet", "atrous", "local-contrast", "clarity", "sharpen", "denoise", "equalizer"],
-  "repository": "anthonyreimche/Contrast-Equalizer-for-Safelight",
+  "repository": "anthonyreimche/Contrast-Equalizer",
   "minAppVersion": "2.4.3"
 }
