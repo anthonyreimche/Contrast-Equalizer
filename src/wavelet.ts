@@ -1,18 +1,21 @@
 // The GPU side: an edge-aware à trous wavelet contrast equalizer built on the
 // host's processing-stage + prepass framework.
 //
-// One STAGE per exposed wavelet octave (4 of them, the host's prepass cap; they
-// expose darktable octaves 0/2/4/6 — see model.ts). Each stage's prepass
+// One STAGE per band of TWO darktable octaves (4 stages spanning all eight —
+// see model.ts BAND_PAIR_T; the host's prepass budget fits all four alongside
+// the builtin denoise since its five-slot allocator). Each stage's prepass
 // independently re-runs the à trous chain from the source — pass j blurs the
 // previous coarse level with the B3-spline kernel dilated by 2^j (an edge-aware
-// blur, darktable's eaw_decompose) — and its LAST pass emits its octave's detail
-// (coarse_o − coarse_{o+1}), bias-encoded into [0,1] so the sign survives the
-// host's RGBA8 ping-pong fallback. Because every stage decomposes from the
-// immutable source, the bands are independent: the inline glsl decodes each
-// octave's detail and sums its boosted, soft-cored change back onto `lin`
-// (darktable's eaw_synthesize, reorganised as `lin += (1+gain)·core(detail) −
-// detail`). Boost is carried as gain = boost−1 so an identity octave's params are
-// all zero (the host idles its prepass) yet a full cut (gain −1) stays active.
+// blur, darktable's eaw_decompose) — and its LAST pass emits the band's detail
+// (coarse_o − coarse_{o+2}, both spanned octaves), bias-encoded into [0,1] so
+// the sign survives the host's RGBA8 ping-pong fallback. The four bands tile
+// darktable's decomposition exactly (Σ bands = source − residual). Because
+// every stage decomposes from the immutable source, the bands are independent:
+// the inline glsl decodes each band's detail and sums its boosted, soft-cored
+// change back onto `lin` (darktable's eaw_synthesize, reorganised as `lin +=
+// (1+gain)·core(detail) − detail`). Boost is carried as gain = boost−1 so an
+// identity band's params are all zero (the host idles its prepass) yet a full
+// cut (gain −1) stays active.
 // Gains/thresholds are inline uniforms, so dragging the luma/chroma curves never
 // recomputes the (cached) prepass — only the cheap inline re-runs.
 //
@@ -74,51 +77,90 @@ float ceSharp(int i) {
   int k = i < 4 ? i : i - 4;
   return k == 0 ? v.x : (k == 1 ? v.y : (k == 2 ? v.z : v.w));
 }
-`;
-
-// `c` enters as readPrev(vUv) = the coarse approximation at this level. We blur it
-// (edge-aware, dilated by the schedule) to the next coarser level; the final pass
-// instead emits this octave's detail = coarse − nextCoarse.
-const PASS_GLSL = `
-{
-  float mult = exp2(float(uPassIndex));
-  float sharp = ceSharp(uPassIndex);
-  vec3 ctr = c;
+// One edge-aware à trous step of the previous pass's buffer (darktable's
+// eaw_decompose): 25-tap B3 dilated by mult, luma weight exp(−s·ΔL²) — eaw.c
+// weight()'s −0.5·sharpen luma lane multiplies a DOUBLED square, so the
+// effective exponent is −s·ΔL² — chroma weight exp(−s·|Δab|²), per-group
+// normalisation, luma on the 0..100 scale.
+vec3 ceBlur(vec2 uv, float mult, float sharp) {
+  vec3 ctr = readPrev(uv);
   float Lc = luma(ctr) * ${CE_SCALE};
-  vec3  abC = (ctr - luma(ctr)) * ${CE_SCALE};   // chroma (zero-luma) of the centre
+  vec3  abC = (ctr - luma(ctr)) * ${CE_SCALE};
   float sumL = 0.0, wL = 0.0;
   vec3  sumC = vec3(0.0); float wC = 0.0;
   for (int dy = -2; dy <= 2; dy++) {
     for (int dx = -2; dx <= 2; dx++) {
       vec2 off = vec2(float(dx), float(dy)) * mult * uTexel;
-      vec3 s = readPrev(vUv + off);
+      vec3 s = readPrev(uv + off);
       float f = ceB3(dx) * ceB3(dy);
       float Ls = luma(s) * ${CE_SCALE};
       vec3  abS = (s - luma(s)) * ${CE_SCALE};
       float dL = Lc - Ls;
-      float wl = exp(-0.5 * sharp * dL * dL);
+      float wl = exp(-sharp * dL * dL);
       vec3  dab = abC - abS;
       float wc = exp(-sharp * dot(dab, dab));
-      float fwl = f * wl;
-      float fwc = f * wc;
-      sumL += fwl * Ls; wL += fwl;
-      sumC += fwc * abS; wC += fwc;
+      sumL += f * wl * Ls; wL += f * wl;
+      sumC += f * wc * abS; wC += f * wc;
     }
   }
   float coarseL = (wL > 0.0 ? sumL / wL : Lc) / ${CE_SCALE};
   vec3  coarseAb = (wC > 0.0 ? sumC / wC : abC) / ${CE_SCALE};
-  vec3 coarse = vec3(coarseL) + coarseAb;
-  // The chained coarse stays as-is; the final pass emits this octave's *signed*
-  // detail, bias-encoded into [0,1] (0.5 = zero) so it survives the host's RGBA8
-  // ping-pong fallback on GPUs without EXT_color_buffer_float. The inline decodes
-  // it. (On the RGBA16F path this just costs ~1 bit of precision.)
-  c = (uPassIndex == uPassCount - 1) ? ((ctr - coarse) * 0.5 + 0.5) : coarse;
+  return vec3(coarseL) + coarseAb;
+}
+// The chain level AFTER the next one, evaluated from ceBlur values: the level
+// o+1 step over level o+1 samples, each themselves a ceBlur of the previous
+// buffer. Only the final pass pays for this (25 + 25×26 taps); the prepass is
+// cached until the image or the edges curve changes.
+vec3 ceBlur2(vec2 uv, float multIn, float sharpIn, float mult2, float sharp2) {
+  vec3 ctr = ceBlur(uv, multIn, sharpIn);
+  float Lc = luma(ctr) * ${CE_SCALE};
+  vec3  abC = (ctr - luma(ctr)) * ${CE_SCALE};
+  float sumL = 0.0, wL = 0.0;
+  vec3  sumC = vec3(0.0); float wC = 0.0;
+  for (int dy = -2; dy <= 2; dy++) {
+    for (int dx = -2; dx <= 2; dx++) {
+      vec2 off = vec2(float(dx), float(dy)) * mult2 * uTexel;
+      vec3 s = ceBlur(uv + off, multIn, sharpIn);
+      float f = ceB3(dx) * ceB3(dy);
+      float Ls = luma(s) * ${CE_SCALE};
+      vec3  abS = (s - luma(s)) * ${CE_SCALE};
+      float dL = Lc - Ls;
+      float wl = exp(-sharp2 * dL * dL);
+      vec3  dab = abC - abS;
+      float wc = exp(-sharp2 * dot(dab, dab));
+      sumL += f * wl * Ls; wL += f * wl;
+      sumC += f * wc * abS; wC += f * wc;
+    }
+  }
+  float coarseL = (wL > 0.0 ? sumL / wL : Lc) / ${CE_SCALE};
+  vec3  coarseAb = (wC > 0.0 ? sumC / wC : abC) / ${CE_SCALE};
+  return vec3(coarseL) + coarseAb;
+}
+`;
+
+// `c` enters as readPrev(vUv) = the coarse approximation at this level. Chain
+// passes blur it one level; the final pass emits the band's TWO-OCTAVE detail
+// c_o − c_{o+2}, so the four bands tile darktable's eight-level decomposition
+// exactly (Σ bands = source − residual; see model.ts BAND_PAIR_T).
+const PASS_GLSL = `
+{
+  float mult = exp2(float(uPassIndex));
+  float sharp = ceSharp(uPassIndex);
+  if (uPassIndex < uPassCount - 1) {
+    c = ceBlur(vUv, mult, sharp);
+  } else {
+    // Signed detail, bias-encoded into [0,1] (0.5 = zero) so it survives the
+    // host's RGBA8 ping-pong fallback on GPUs without EXT_color_buffer_float.
+    // The inline decodes it. (On the RGBA16F path this costs ~1 bit.)
+    vec3 coarse2 = ceBlur2(vUv, mult, sharp, mult * 2.0, ceSharp(uPassIndex + 1));
+    c = (c - coarse2) * 0.5 + 0.5;
+  }
 }
 `;
 
 // ── Inline: boost + soft-core this octave's detail back onto the image ───────
 //
-// stageResult = this octave's bias-encoded detail; decode it first. Split into
+// stageResult = this band's bias-encoded two-octave detail; decode it. Split into
 // achromatic-luma + chroma, soft-core each (darktable: copysign(max(|d|−thr,0))),
 // apply the boost as (1 + gain), and add the *change* ((1+gain)·core − detail).
 // gain = 0 / thr = 0 is an exact identity — true even when the stage is inactive
@@ -134,7 +176,10 @@ const INLINE_GLSL = `
   float coreL = sign(dL100) * max(abs(dL100) - thrL, 0.0) / ${CE_SCALE};
   float addL = (1.0 + gainL) * coreL - dL;
   float cmag = length(dC) * ${CE_SCALE};
-  float fac = cmag > 1e-5 ? max(cmag - thrC, 0.0) / cmag : 0.0;
+  // Below the epsilon the magnitude division is unstable; pass the (≤1e-7
+  // linear) chroma through UNcored — the zero-gain identity stays exact, which
+  // the idle-stage fallback contract depends on.
+  float fac = cmag > 1e-5 ? max(cmag - thrC, 0.0) / cmag : 1.0;
   vec3  coreC = dC * fac;
   vec3  addC = (1.0 + gainC) * coreC - dC;
   lin += vec3(addL) + addC;
@@ -152,7 +197,8 @@ function bandPass(band: number): StagePass {
   return {
     glsl: PASS_GLSL,
     helpers: PASS_HELPERS,
-    // Reaching octave o's detail takes the full chain: o+1 levels from the source.
+    // o+1 chained passes from the source; the final one evaluates levels o+1
+    // AND o+2 itself (ceBlur2) to emit the band's two-octave detail.
     iterations: OCTAVES[band] + 1,
     uniforms: [
       { key: "uSharpsA", glslType: "vec4", default: [0, 0, 0, 0] },

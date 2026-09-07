@@ -3,8 +3,8 @@
 // A faithful port of darktable's contrast equalizer (the "atrous" module): an
 // edge-aware à trous wavelet decomposition with per-scale luma / chroma boost and
 // noise thresholds plus an edge-awareness curve. Registers four wavelet-octave GPU
-// stages (the host's prepass cap) and a Develop panel that reproduces darktable's
-// three-tab frequency-curve UI.
+// stages and a Develop panel that reproduces darktable's three-tab
+// frequency-curve UI and its graph interaction.
 //
 // See wavelet.ts for the GPU model and Equalizer.ts for the panel.
 
@@ -13,13 +13,13 @@ import { initRuntime } from "./runtime";
 import { allBandStages, BASE_ID, bandStageId } from "./wavelet";
 import { EqualizerPanel } from "./Equalizer";
 import { deriveAll, DEFAULT_MIX } from "./params";
-import { defaultCurves, GPU_SCALES } from "./model";
+import { defaultCurves, defaultXs, GPU_SCALES } from "./model";
 
 const PANEL_ID = `${BASE_ID}.panel`;
 
 function resetPanel(api: SafelightAPI): void {
   const store = api.stores.useDevelopStore.getState();
-  store.setDynParams(deriveAll(defaultCurves(), DEFAULT_MIX));
+  store.setDynParams(deriveAll(defaultCurves(), defaultXs(), DEFAULT_MIX));
   // Persist the reset so it survives a library round-trip / reload.
   void store.commitEdit("Contrast Equalizer reset");
 }
