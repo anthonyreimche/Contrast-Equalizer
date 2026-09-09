@@ -1,348 +1,331 @@
-let fe = null, he = null;
-function Ve(e) {
-  fe = e.react, he = e;
+let pe = null, ve = null;
+function ot(e) {
+  pe = e.react, ve = e;
 }
-function F() {
-  if (!he) throw new Error("[contrast-equalizer] api used before activate()");
-  return he;
+function q() {
+  if (!ve) throw new Error("[contrast-equalizer] api used before activate()");
+  return ve;
 }
-function xe() {
-  if (!fe) throw new Error("[contrast-equalizer] runtime used before activate()");
-  return fe;
+function st() {
+  if (!pe) throw new Error("[contrast-equalizer] runtime used before activate()");
+  return pe;
 }
-function H(e, t, ...s) {
-  return xe().createElement(e, t, ...s);
+function O(e, t, ...s) {
+  return st().createElement(e, t, ...s);
 }
-const S = 6, ye = Array.from({ length: S }, (e, t) => t / (S - 1)), Y = {
+const S = 6, Pe = Array.from({ length: S }, (e, t) => t / (S - 1)), W = {
   L: 0.5,
   c: 0.5,
   s: 0.5,
   Lt: 0,
   ct: 0
-}, je = ["L", "c", "s", "Lt", "ct"];
+}, rt = ["L", "c", "s", "Lt", "ct"];
 function le() {
   const e = (t) => Array.from({ length: S }, () => t);
   return {
-    L: e(Y.L),
-    c: e(Y.c),
-    s: e(Y.s),
-    Lt: e(Y.Lt),
-    ct: e(Y.ct)
+    L: e(W.L),
+    c: e(W.c),
+    s: e(W.s),
+    Lt: e(W.Lt),
+    ct: e(W.ct)
   };
 }
-function Ce() {
+function ke() {
   const e = {};
-  for (const t of je) e[t] = [...ye];
+  for (const t of rt) e[t] = [...Pe];
   return e;
 }
-function Q(e) {
+function j(e) {
   return { L: [...e.L], c: [...e.c], s: [...e.s], Lt: [...e.Lt], ct: [...e.ct] };
 }
-function Z(e) {
+function J(e) {
   return { L: [...e.L], c: [...e.c], s: [...e.s], Lt: [...e.Lt], ct: [...e.ct] };
 }
-const Me = 8, ce = [0, 2, 4, 6], ie = ce.length, me = (e) => 1 - (e + 0.5) / Me, Je = ce.map(
-  (e) => [me(e), me(e + 1)]
-), V = Array.from({ length: Me }, (e, t) => me(t));
-function pe(e) {
+const ae = 8, K = Array.from(
+  { length: ae },
+  (e, t) => 1 - (t + 0.5) / ae
+);
+function ge(e) {
   return e < 0 ? 0 : e > 1 ? 1 : e;
 }
-function U(e, t, s) {
-  const n = t.length;
-  let r = n - 2;
-  for (let b = 0; b < n - 2; b++)
-    if (s < e[b + 1]) {
-      r = b;
+function X(e, t, s) {
+  const o = t.length;
+  let n = o - 2;
+  for (let y = 0; y < o - 2; y++)
+    if (s < e[y + 1]) {
+      n = y;
       break;
     }
-  const l = (b, _) => (t[_] - t[b]) / (e[_] - e[b]), u = r === 0 ? l(0, 1) : l(r - 1, r + 1), L = r === n - 2 ? l(n - 2, n - 1) : l(r, r + 2), h = e[r + 1] - e[r], w = (s - e[r]) / h, T = w * w, D = T * w, m = 2 * D - 3 * T + 1, v = D - 2 * T + w, A = -2 * D + 3 * T, g = D - T;
-  return pe(m * t[r] + v * h * u + A * t[r + 1] + g * h * L);
+  const a = (y, D) => (t[D] - t[y]) / (e[D] - e[y]), d = n === 0 ? a(0, 1) : a(n - 1, n + 1), g = n === o - 2 ? a(o - 2, o - 1) : a(n, n + 2), i = e[n + 1] - e[n], k = (s - e[n]) / i, T = k * k, I = T * k, p = 2 * I - 3 * T + 1, C = I - 2 * T + k, w = -2 * I + 3 * T, v = I - T;
+  return ge(p * t[n] + C * i * d + w * t[n + 1] + v * i * g);
 }
-function ge(e, t, s, n) {
-  if (n === 1) return { xs: t, ys: s };
-  const r = Y[e];
+function ye(e, t, s, o) {
+  if (o === 1) return { xs: t, ys: s };
+  const n = W[e];
   return {
-    xs: t.map((l, u) => pe(l + (n - 1) * (l - ye[u]))),
-    ys: s.map((l) => pe(l + (n - 1) * (l - r)))
+    xs: t.map((a, d) => ge(a + (o - 1) * (a - Pe[d]))),
+    ys: s.map((a) => ge(a + (o - 1) * (a - n)))
   };
 }
-function ee(e, t, s, n, r) {
-  const { xs: l, ys: u } = ge(s, t[s], e[s], r);
-  return U(l, u, n);
+function Q(e, t, s, o, n) {
+  const { xs: a, ys: d } = ye(s, t[s], e[s], n);
+  return X(a, d, o);
 }
-function Qe(e, t, s, n) {
-  let r = 0, l = 0, u = 0, L = 0;
-  for (const h of Je[s]) {
-    const w = ee(e, t, "L", h, n), T = ee(e, t, "c", h, n), D = ee(e, t, "Lt", h, n), m = ee(e, t, "ct", h, n), v = Math.pow(2, -7 * (1 - h));
-    r += (2 * w * (2 * w) - 1) / 2, l += (2 * T * (2 * T) - 1) / 2, u += v * 10 * D / 2, L += v * 20 * m / 2;
-  }
-  return { gainL: r, gainC: l, thrL: u, thrC: L };
+function at(e, t, s, o) {
+  const n = K[s], a = Q(e, t, "L", n, o), d = Q(e, t, "c", n, o), g = Q(e, t, "Lt", n, o), i = Q(e, t, "ct", n, o), k = Math.pow(2, -7 * (1 - n));
+  return {
+    gainL: 2 * a * (2 * a) - 1,
+    gainC: 2 * d * (2 * d) - 1,
+    thrL: k * 10 * g,
+    thrC: k * 20 * i
+  };
 }
-function Ze(e, t, s) {
-  return V.map((n) => 25e-4 * ee(e, t, "s", n, s));
+function ct(e, t, s) {
+  return K.map((o) => 25e-4 * Q(e, t, "s", o, s));
 }
-const te = "contrast-equalizer";
-function Pe(e) {
+const te = "contrast-equalizer", we = ["luma", "chroma-red", "chroma-blue"];
+function Ie(e) {
   let t = 0;
   for (let s = 0; s < e.length; s++) t = (t << 5) - t + e.charCodeAt(s) | 0;
   return (t >>> 0).toString(36).slice(0, 4);
 }
-const Re = ["fine", "medium", "coarse", "coarsest"], et = (() => {
-  const e = [], t = /* @__PURE__ */ new Set();
-  for (let s = 0; s < ie; s++) {
-    const n = `${te}.${Re[s] ?? `octave${s}`}`;
-    let r = 0, l = n;
-    for (; t.has(Pe(l)) && r < 1e3; ) l = `${n}-${++r}`;
-    t.add(Pe(l)), e.push(l);
+const lt = (() => {
+  const e = {}, t = /* @__PURE__ */ new Set();
+  for (const s of we) {
+    const o = `${te}.${s}`;
+    let n = o;
+    for (let a = 1; t.has(Ie(n)) && a < 1e3; a++) n = `${o}-${a}`;
+    t.add(Ie(n)), e[s] = n;
   }
   return e;
-})(), Se = (e) => et[e], B = "100.0", tt = `
+})(), ie = (e) => lt[e], ze = "0.2126", be = "0.7152", He = "0.0722", xe = `
 // B3 spline 1D weights [1,4,6,4,1]/16.
 float ceB3(int d) { d = d < 0 ? -d : d; return d == 0 ? 0.375 : (d == 1 ? 0.25 : 0.0625); }
-// Per-level edge sharpness (darktable 'sharp'): levels 0-3 in A, 4-7 in B.
-float ceSharp(int i) {
-  vec4 v = i < 4 ? uSharpsA : uSharpsB;
+// Level i of a per-level table split across two vec4s.
+float ceLevel(vec4 a, vec4 b, int i) {
+  vec4 v = i < 4 ? a : b;
   int k = i < 4 ? i : i - 4;
   return k == 0 ? v.x : (k == 1 ? v.y : (k == 2 ? v.z : v.w));
 }
-// One edge-aware à trous step of the previous pass's buffer (darktable's
-// eaw_decompose): 25-tap B3 dilated by mult, luma weight exp(−s·ΔL²) — eaw.c
-// weight()'s −0.5·sharpen luma lane multiplies a DOUBLED square, so the
-// effective exponent is −s·ΔL² — chroma weight exp(−s·|Δab|²), per-group
-// normalisation, luma on the 0..100 scale.
-vec3 ceBlur(vec2 uv, float mult, float sharp) {
-  vec3 ctr = readPrev(uv);
-  float Lc = luma(ctr) * ${B};
-  vec3  abC = (ctr - luma(ctr)) * ${B};
-  float sumL = 0.0, wL = 0.0;
-  vec3  sumC = vec3(0.0); float wC = 0.0;
-  for (int dy = -2; dy <= 2; dy++) {
-    for (int dx = -2; dx <= 2; dx++) {
-      vec2 off = vec2(float(dx), float(dy)) * mult * uTexel;
-      vec3 s = readPrev(uv + off);
-      float f = ceB3(dx) * ceB3(dy);
-      float Ls = luma(s) * ${B};
-      vec3  abS = (s - luma(s)) * ${B};
-      float dL = Lc - Ls;
-      float wl = exp(-sharp * dL * dL);
-      vec3  dab = abC - abS;
-      float wc = exp(-sharp * dot(dab, dab));
-      sumL += f * wl * Ls; wL += f * wl;
-      sumC += f * wc * abS; wC += f * wc;
-    }
-  }
-  float coarseL = (wL > 0.0 ? sumL / wL : Lc) / ${B};
-  vec3  coarseAb = (wC > 0.0 ? sumC / wC : abC) / ${B};
-  return vec3(coarseL) + coarseAb;
+`, it = `${xe}
+vec3 ceState(vec2 uv) {
+  vec3 p = readPrev(uv);
+  return uPrevRaw ? vec3(luma(p), 0.0, 0.0) : p;
 }
-// The chain level AFTER the next one, evaluated from ceBlur values: the level
-// o+1 step over level o+1 samples, each themselves a ceBlur of the previous
-// buffer. Only the final pass pays for this (25 + 25×26 taps); the prepass is
-// cached until the image or the edges curve changes.
-vec3 ceBlur2(vec2 uv, float multIn, float sharpIn, float mult2, float sharp2) {
-  vec3 ctr = ceBlur(uv, multIn, sharpIn);
-  float Lc = luma(ctr) * ${B};
-  vec3  abC = (ctr - luma(ctr)) * ${B};
-  float sumL = 0.0, wL = 0.0;
-  vec3  sumC = vec3(0.0); float wC = 0.0;
-  for (int dy = -2; dy <= 2; dy++) {
-    for (int dx = -2; dx <= 2; dx++) {
-      vec2 off = vec2(float(dx), float(dy)) * mult2 * uTexel;
-      vec3 s = ceBlur(uv + off, multIn, sharpIn);
-      float f = ceB3(dx) * ceB3(dy);
-      float Ls = luma(s) * ${B};
-      vec3  abS = (s - luma(s)) * ${B};
-      float dL = Lc - Ls;
-      float wl = exp(-sharp2 * dL * dL);
-      vec3  dab = abC - abS;
-      float wc = exp(-sharp2 * dot(dab, dab));
-      sumL += f * wl * Ls; wL += f * wl;
-      sumC += f * wc * abS; wC += f * wc;
-    }
-  }
-  float coarseL = (wL > 0.0 ? sumL / wL : Lc) / ${B};
-  vec3  coarseAb = (wC > 0.0 ? sumC / wC : abC) / ${B};
-  return vec3(coarseL) + coarseAb;
-}
-`, nt = `
+float ceCoarse(vec3 st) { return (st.x + st.y) * 100.0; }
+`, ut = `
 {
   float mult = exp2(float(uPassIndex));
-  float sharp = ceSharp(uPassIndex);
-  if (uPassIndex < uPassCount - 1) {
-    c = ceBlur(vUv, mult, sharp);
-  } else {
-    // Signed detail, bias-encoded into [0,1] (0.5 = zero) so it survives the
-    // host's RGBA8 ping-pong fallback on GPUs without EXT_color_buffer_float.
-    // The inline decodes it. (On the RGBA16F path this costs ~1 bit.)
-    vec3 coarse2 = ceBlur2(vUv, mult, sharp, mult * 2.0, ceSharp(uPassIndex + 1));
-    c = (c - coarse2) * 0.5 + 0.5;
+  float sharp = ceLevel(sharpA, sharpB, uPassIndex);
+  vec3 st = ceState(vUv);
+  float Lc = ceCoarse(st);
+  float sum = 0.0;
+  float wsum = 0.0;
+  for (int dy = -2; dy <= 2; dy++) {
+    for (int dx = -2; dx <= 2; dx++) {
+      float Ls = ceCoarse(ceState(vUv + vec2(float(dx), float(dy)) * mult * uTexel));
+      float dL = Lc - Ls;
+      float w = ceB3(dx) * ceB3(dy) * exp(-sharp * dL * dL);
+      sum += w * Ls;
+      wsum += w;
+    }
   }
+  float coarse = wsum > 0.0 ? sum / wsum : Lc;
+  float d = Lc - coarse;
+  float core = sign(d) * max(abs(d) - ceLevel(thrA, thrB, uPassIndex), 0.0);
+  float acc = st.z + ((1.0 + ceLevel(gainA, gainB, uPassIndex)) * core - d) * 0.01;
+  c = uPassIndex == uPassCount - 1 ? vec3(acc, 0.0, 0.0) : vec3(st.x, coarse * 0.01 - st.x, acc);
 }
-`, ot = `
+`, De = (e) => `${xe}
+const int CE_COMP = ${e};
+vec3 ceState(vec2 uv) {
+  vec3 p = readPrev(uv);
+  if (uPrevRaw) {
+    float L = luma(p);
+    return vec3(p.r - L, p.b - L, 0.0);
+  }
+  return p;
+}
+// The zero-luma chroma vector from its (R−L, B−L) coordinates.
+vec3 ceChroma(vec2 ab) { return vec3(ab.x, -(${ze} * ab.x + ${He} * ab.y) / ${be}, ab.y); }
+`, _e = `
 {
-  vec3 d = (stageResult - 0.5) * 2.0;      // decode the bias-encoded signed detail
-  float dL = luma(d);
-  vec3  dC = d - dL;                       // chroma part (zero luma)
-  float dL100 = dL * ${B};
-  float coreL = sign(dL100) * max(abs(dL100) - thrL, 0.0) / ${B};
-  float addL = (1.0 + gainL) * coreL - dL;
-  float cmag = length(dC) * ${B};
+  float mult = exp2(float(uPassIndex));
+  float sharp = ceLevel(sharpA, sharpB, uPassIndex);
+  vec3 st = ceState(vUv);
+  vec2 abC = st.xy * 100.0;
+  vec3 abC3 = ceChroma(abC);
+  vec2 sum = vec2(0.0);
+  float wsum = 0.0;
+  for (int dy = -2; dy <= 2; dy++) {
+    for (int dx = -2; dx <= 2; dx++) {
+      vec2 abS = ceState(vUv + vec2(float(dx), float(dy)) * mult * uTexel).xy * 100.0;
+      vec3 dab = abC3 - ceChroma(abS);
+      float w = ceB3(dx) * ceB3(dy) * exp(-sharp * dot(dab, dab));
+      sum += w * abS;
+      wsum += w;
+    }
+  }
+  vec2 coarse = wsum > 0.0 ? sum / wsum : abC;
+  vec2 d = abC - coarse;
+  float mag = length(ceChroma(d));
+  float thr = ceLevel(thrA, thrB, uPassIndex);
   // Below the epsilon the magnitude division is unstable; pass the (≤1e-7
-  // linear) chroma through UNcored — the zero-gain identity stays exact, which
-  // the idle-stage fallback contract depends on.
-  float fac = cmag > 1e-5 ? max(cmag - thrC, 0.0) / cmag : 1.0;
-  vec3  coreC = dC * fac;
-  vec3  addC = (1.0 + gainC) * coreC - dC;
-  lin += vec3(addL) + addC;
+  // linear) chroma through uncored so the zero-gain case stays an exact identity.
+  float fac = mag > 1e-5 ? max(mag - thr, 0.0) / mag : 1.0;
+  float dX = CE_COMP == 0 ? d.x : d.y;
+  float acc = st.z + ((1.0 + ceLevel(gainA, gainB, uPassIndex)) * fac * dX - dX) * 0.01;
+  c = uPassIndex == uPassCount - 1 ? vec3(acc, 0.0, 0.0) : vec3(coarse * 0.01, acc);
 }
-`, st = [
-  { key: "gainL", glslType: "float", default: 0, label: "Luma gain" },
-  { key: "gainC", glslType: "float", default: 0, label: "Chroma gain" },
-  { key: "thrL", glslType: "float", default: 0, label: "Luma threshold" },
-  { key: "thrC", glslType: "float", default: 0, label: "Chroma threshold" }
-];
-function rt(e) {
+`, dt = ["gainA", "gainB", "thrA", "thrB", "sharpA", "sharpB"].map(
+  (e) => ({ key: e, glslType: "vec4", default: [0, 0, 0, 0] })
+), ft = [
+  { key: "active", glslType: "float", default: 0 }
+], ht = "lin += vec3(stageResult.x * active);", Ne = {
+  0: `{
+  float d = stageResult.x * active;
+  lin += vec3(d, -d * (${ze} / ${be}), 0.0);
+}`,
+  1: `{
+  float d = stageResult.x * active;
+  lin += vec3(0.0, -d * (${He} / ${be}), d);
+}`
+};
+function he(e, t, s, o, n, a) {
   return {
-    glsl: nt,
-    helpers: tt,
-    // o+1 chained passes from the source; the final one evaluates levels o+1
-    // AND o+2 itself (ceBlur2) to emit the band's two-octave detail.
-    iterations: ce[e] + 1,
-    uniforms: [
-      { key: "uSharpsA", glslType: "vec4", default: [0, 0, 0, 0] },
-      { key: "uSharpsB", glslType: "vec4", default: [0, 0, 0, 0] }
-    ]
-  };
-}
-function at(e) {
-  return {
-    id: Se(e),
-    name: `Contrast Equalizer · ${Re[e] ?? `band ${e}`}`,
-    // Scene-linear, after exposure/white balance; bands are additive so their
-    // order among themselves doesn't matter.
+    id: ie(e),
+    name: `Contrast Equalizer · ${t}`,
+    // Scene-linear, after exposure/white balance; the three changes are
+    // additive so their order among themselves doesn't matter.
     phase: "scene-linear",
-    priority: 70 + e,
-    glsl: ot,
-    uniforms: st,
-    passes: [rt(e)]
+    priority: s,
+    glsl: a,
+    uniforms: ft,
+    passes: [{ glsl: o, helpers: n, iterations: ae, uniforms: dt }]
   };
 }
-function lt() {
-  return Array.from({ length: ie }, (e, t) => at(t));
+function mt() {
+  return [
+    he("luma", "luma", 70, ut, it, ht),
+    he("chroma-red", "chroma R−L", 71, _e, De(0), Ne[0]),
+    he("chroma-blue", "chroma B−L", 72, _e, De(1), Ne[1])
+  ];
 }
-const we = ["L", "c", "s", "Lt", "ct"], De = (e) => `${te}.curve.${e}`, Ie = (e) => `${te}.curvex.${e}`, _e = `${te}.mix`, ae = 1;
-function Ne(e) {
+const ue = ["L", "c", "s", "Lt", "ct"], Ae = (e) => `${te}.curve.${e}`, qe = (e) => `${te}.curvex.${e}`, Oe = `${te}.mix`, ce = 1;
+function Ee(e) {
   return Array.isArray(e) && e.length === S && e.every((t) => typeof t == "number");
 }
-function ct(e) {
-  const t = Q(le());
-  for (const s of we) {
-    const n = e[De(s)];
-    Ne(n) && (t[s] = [...n]);
+function Fe(e) {
+  const t = j(le());
+  for (const s of ue) {
+    const o = e[Ae(s)];
+    Ee(o) && (t[s] = [...o]);
   }
   return t;
 }
-function it(e) {
-  const t = Z(Ce());
-  for (const s of we) {
-    const n = e[Ie(s)];
-    Ne(n) && (t[s] = [...n]);
+function Ge(e) {
+  const t = J(ke());
+  for (const s of ue) {
+    const o = e[qe(s)];
+    Ee(o) && (t[s] = [...o]);
   }
   return t;
 }
-function ut(e) {
-  const t = e[_e];
-  return typeof t == "number" ? t : ae;
+function We(e) {
+  const t = e[Oe];
+  return typeof t == "number" ? t : ce;
 }
-function Xe(e, t, s) {
-  const n = {};
-  for (const l of we)
-    n[De(l)] = [...e[l]], n[Ie(l)] = [...t[l]];
-  n[_e] = s;
-  const r = Ze(e, t, s);
-  for (let l = 0; l < ie; l++) {
-    const u = Se(l), L = Qe(e, t, l, s);
-    n[`${u}.gainL`] = L.gainL, n[`${u}.gainC`] = L.gainC, n[`${u}.thrL`] = L.thrL, n[`${u}.thrC`] = L.thrC;
-    const h = L.gainL === 0 && L.gainC === 0 && L.thrL === 0 && L.thrC === 0, w = r.map((T, D) => !h && D <= ce[l] + 1 ? T : 0);
-    n[`${u}.uSharpsA`] = w.slice(0, 4), n[`${u}.uSharpsB`] = w.slice(4, 8);
-  }
-  return n;
+const pt = [0, 0, 0, 0];
+function me(e, t, s, o, n) {
+  const a = ie(e), d = t.some((i) => i !== 0) || s.some((i) => i !== 0), g = (i) => d ? i : pt;
+  n[`${a}.gainA`] = g(t.slice(0, 4)), n[`${a}.gainB`] = g(t.slice(4, 8)), n[`${a}.thrA`] = g(s.slice(0, 4)), n[`${a}.thrB`] = g(s.slice(4, 8)), n[`${a}.sharpA`] = g(o.slice(0, 4)), n[`${a}.sharpB`] = g(o.slice(4, 8)), n[`${a}.active`] = d ? 1 : 0;
 }
-const z = S - 1, C = (e) => Array.from({ length: S }, (t, s) => e(s)), W = (e) => ({ ...le(), ...e }), dt = (e, t) => Math.exp(-((1 - e) * (1 - e)) / (t * t)) / (2 * t * Math.sqrt(Math.PI)), ft = 3 / z, ht = (e, t, s) => {
-  const n = (r) => [0.5, 1, 2].slice(0, e).reduce((l, u) => l + dt(r, u * ft), 0);
-  return W({
-    L: C((r) => 0.5 + n(r / z) / t),
-    s: C((r) => 0.5 + n(r / z) / t),
-    Lt: C((r) => n(r / z) / s),
-    ct: C((r) => n(r / z) / s)
+function Me(e, t, s) {
+  const o = {};
+  for (const i of ue)
+    o[Ae(i)] = [...e[i]], o[qe(i)] = [...t[i]];
+  o[Oe] = s;
+  const n = Array.from({ length: ae }, (i, k) => at(e, t, k, s)), a = ct(e, t, s), d = n.map((i) => i.gainC), g = n.map((i) => i.thrC);
+  return me("luma", n.map((i) => i.gainL), n.map((i) => i.thrL), a, o), me("chroma-red", d, g, a, o), me("chroma-blue", d, g, a, o), o;
+}
+function vt(e) {
+  return !ue.some((t) => Ee(e[Ae(t)])) || we.every((t) => `${ie(t)}.active` in e) ? null : Me(Fe(e), Ge(e), We(e));
+}
+const U = S - 1, L = (e) => Array.from({ length: S }, (t, s) => e(s)), F = (e) => ({ ...le(), ...e }), gt = (e, t) => Math.exp(-((1 - e) * (1 - e)) / (t * t)) / (2 * t * Math.sqrt(Math.PI)), yt = 3 / U, bt = (e, t, s) => {
+  const o = (n) => [0.5, 1, 2].slice(0, e).reduce((a, d) => a + gt(n, d * yt), 0);
+  return F({
+    L: L((n) => 0.5 + o(n / U) / t),
+    s: L((n) => 0.5 + o(n / U) / t),
+    Lt: L((n) => o(n / U) / s),
+    ct: L((n) => o(n / U) / s)
   });
-}, mt = [
+}, Lt = [
   [3, 16, 128],
   [2, 24, 192],
   [1, 32, 128]
-], pt = [
+], St = [
   ["large", 3],
   ["medium", 2],
   ["fine", 1]
-], $e = [
+], Xe = [
   { id: "flat", label: "Flat (reset)", build: () => le() },
   {
     id: "coarse",
     label: "Coarse",
-    build: () => W({
-      L: C((e) => Math.max(0.5, 0.75 - 0.5 * e / z)),
-      c: C((e) => Math.max(0.5, 0.55 - 0.5 * e / z)),
-      s: C((e) => Math.min(0.5, 0.2 + 0.35 * e / z))
+    build: () => F({
+      L: L((e) => Math.max(0.5, 0.75 - 0.5 * e / U)),
+      c: L((e) => Math.max(0.5, 0.55 - 0.5 * e / U)),
+      s: L((e) => Math.min(0.5, 0.2 + 0.35 * e / U))
     })
   },
   {
     id: "denoise-sharpen",
     label: "Denoise & sharpen",
-    build: () => W({
-      L: C((e) => 0.5 + 0.25 * e / S),
-      Lt: C((e) => 0.2 * e / S),
-      ct: C((e) => 0.3 * e / S)
+    build: () => F({
+      L: L((e) => 0.5 + 0.25 * e / S),
+      Lt: L((e) => 0.2 * e / S),
+      ct: L((e) => 0.3 * e / S)
     })
   },
   {
     id: "sharpen",
     label: "Sharpen",
-    build: () => W({ L: C((e) => 0.5 + 0.25 * e / S) })
+    build: () => F({ L: L((e) => 0.5 + 0.25 * e / S) })
   },
   {
     id: "denoise-chroma",
     label: "Denoise chroma",
-    build: () => W({
-      s: C(() => 0),
-      ct: C((e) => Math.max(0, 0.6 * e / S - 0.3))
+    build: () => F({
+      s: L(() => 0),
+      ct: L((e) => Math.max(0, 0.6 * e / S - 0.3))
     })
   },
   {
     id: "denoise",
     label: "Denoise",
-    build: () => W({
-      Lt: C((e) => 0.2 * e / S),
-      ct: C((e) => 0.3 * e / S)
+    build: () => F({
+      Lt: L((e) => 0.2 * e / S),
+      ct: L((e) => 0.3 * e / S)
     })
   },
   {
     id: "bloom",
     label: "Bloom",
-    build: () => W({
-      L: C((e) => e === 0 ? 0.5 : Math.min(0.5, 0.3 + 0.35 * e / z)),
-      s: C(() => 0)
+    build: () => F({
+      L: L((e) => e === 0 ? 0.5 : Math.min(0.5, 0.3 + 0.35 * e / U)),
+      s: L(() => 0)
     })
   },
   {
     id: "clarity",
     label: "Clarity (local contrast)",
-    build: () => W({ L: C(() => 0.6), c: C(() => 0.55), s: C(() => 0) })
+    build: () => F({ L: L(() => 0.6), c: L(() => 0.55), s: L(() => 0) })
   },
-  ...mt.flatMap(
-    ([e, t, s]) => pt.map(([n, r]) => ({
-      id: `deblur-${n}-${e}`,
-      label: `Deblur · ${n} blur · strength ${e}`,
-      build: () => ht(r, t, s)
+  ...Lt.flatMap(
+    ([e, t, s]) => St.map(([o, n]) => ({
+      id: `deblur-${o}-${e}`,
+      label: `Deblur · ${o} blur · strength ${e}`,
+      build: () => bt(n, t, s)
     }))
   )
 ], re = [
@@ -350,7 +333,7 @@ const z = S - 1, C = (e) => Array.from({ length: S }, (t, s) => e(s)), W = (e) =
   { key: "chroma", label: "chroma", primary: "c", thr: "ct" },
   { key: "edges", label: "edges", primary: "s", thr: null }
 ];
-function gt(e) {
+function Ct(e) {
   return {
     ink: e ? "224,224,224" : "43,43,43",
     circle: e ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.6)",
@@ -363,302 +346,310 @@ function gt(e) {
     }
   };
 }
-const Be = (e, t, s) => {
-  const [n, r, l, u] = e.ch[t];
-  return `rgba(${n},${r},${l},${u * (s ? 0.5 : 1)})`;
-}, f = 6, Le = 13, I = 64, Lt = 1 / S, bt = 0.25 / S, vt = 1;
-function be(e) {
+const Ue = (e, t, s) => {
+  const [o, n, a, d] = e.ch[t];
+  return `rgba(${o},${n},${a},${d * (s ? 0.5 : 1)})`;
+}, h = 6, Le = 13, B = 64, Pt = 1 / S, kt = 0.25 / S, wt = 1;
+function Se(e) {
   return e < 0 ? 0 : e > 1 ? 1 : e;
 }
-function ve(e, t, s, n, r) {
-  return e.map((l, u) => {
-    const L = s - t[u], h = Math.exp(-(L * L) / (r * r));
-    return be((1 - h) * l + h * n);
+function Ce(e, t, s, o, n) {
+  return e.map((a, d) => {
+    const g = s - t[d], i = Math.exp(-(g * g) / (n * n));
+    return Se((1 - i) * a + i * o);
   });
 }
-function yt(e, t, s, n, r, l, u, L, h, w, T, D, m) {
-  const v = t - 2 * f, A = s - 2 * f - Le, g = (c) => f + c * v, b = (c) => f + (1 - c) * A;
-  e.clearRect(0, 0, t, s), e.strokeStyle = `rgba(${m.ink},0.8)`, e.lineWidth = 1, e.strokeRect(f, f, v, A), e.strokeStyle = `rgba(${m.ink},0.22)`;
-  for (let c = 1; c < 8; c++)
-    e.beginPath(), e.moveTo(g(c / 8), f), e.lineTo(g(c / 8), f + A), e.stroke(), e.beginPath(), e.moveTo(f, f + c / 8 * A), e.lineTo(f + v, f + c / 8 * A), e.stroke();
-  e.fillStyle = `rgba(${m.ink},0.10)`;
-  for (let c = 1; c < V.length; c += 2) {
-    const k = g(Math.min(V[c - 1], V[c])), M = g(Math.max(V[c - 1], V[c]));
-    e.fillRect(k, f, M - k, A);
+function At(e, t, s, o, n, a, d, g, i, k, T, I, p) {
+  const C = t - 2 * h, w = s - 2 * h - Le, v = (l) => h + l * C, y = (l) => h + (1 - l) * w;
+  e.clearRect(0, 0, t, s), e.strokeStyle = `rgba(${p.ink},0.8)`, e.lineWidth = 1, e.strokeRect(h, h, C, w), e.strokeStyle = `rgba(${p.ink},0.22)`;
+  for (let l = 1; l < 8; l++)
+    e.beginPath(), e.moveTo(v(l / 8), h), e.lineTo(v(l / 8), h + w), e.stroke(), e.beginPath(), e.moveTo(h, h + l / 8 * w), e.lineTo(h + C, h + l / 8 * w), e.stroke();
+  e.fillStyle = `rgba(${p.ink},0.10)`;
+  for (let l = 1; l < K.length; l += 2) {
+    const P = v(Math.min(K[l - 1], K[l])), R = v(Math.max(K[l - 1], K[l]));
+    e.fillRect(P, h, R - P, w);
   }
-  const _ = [...re.filter((c) => c.key !== l.key), l];
-  for (const c of _) {
-    const k = c.key !== l.key, M = ge(c.primary, r[c.primary], n[c.primary], L);
-    if (e.beginPath(), c.thr) {
-      const R = ge(c.thr, r[c.thr], n[c.thr], L);
-      e.moveTo(g(1), b(U(R.xs, R.ys, 1)));
-      for (let p = I - 2; p >= 0; p--) {
-        const X = p / (I - 1);
-        e.lineTo(g(X), b(U(R.xs, R.ys, X)));
+  const D = [...re.filter((l) => l.key !== a.key), a];
+  for (const l of D) {
+    const P = l.key !== a.key, R = ye(l.primary, n[l.primary], o[l.primary], g);
+    if (e.beginPath(), l.thr) {
+      const $ = ye(l.thr, n[l.thr], o[l.thr], g);
+      e.moveTo(v(1), y(X($.xs, $.ys, 1)));
+      for (let m = B - 2; m >= 0; m--) {
+        const N = m / (B - 1);
+        e.lineTo(v(N), y(X($.xs, $.ys, N)));
       }
-      for (let p = 0; p < I; p++) {
-        const X = p / (I - 1);
-        e.lineTo(g(X), b(U(M.xs, M.ys, X)));
+      for (let m = 0; m < B; m++) {
+        const N = m / (B - 1);
+        e.lineTo(v(N), y(X(R.xs, R.ys, N)));
       }
     } else {
-      e.moveTo(g(0), b(0));
-      for (let R = 0; R < I; R++) {
-        const p = R / (I - 1);
-        e.lineTo(g(p), b(U(M.xs, M.ys, p)));
+      e.moveTo(v(0), y(0));
+      for (let $ = 0; $ < B; $++) {
+        const m = $ / (B - 1);
+        e.lineTo(v(m), y(X(R.xs, R.ys, m)));
       }
-      e.lineTo(g(1), b(0));
+      e.lineTo(v(1), y(0));
     }
     e.closePath();
-    const K = Be(m, c.primary, k);
-    e.strokeStyle = K, e.fillStyle = K, e.lineWidth = 2, e.stroke(), e.fill();
+    const G = Ue(p, l.primary, P);
+    e.strokeStyle = G, e.fillStyle = G, e.lineWidth = 2, e.stroke(), e.fill();
   }
-  if ((w || h !== null && !h.strip && h.y > 0) && h) {
-    const c = r[u], k = n[u];
+  if ((k || i !== null && !i.strip && i.y > 0) && i) {
+    const l = n[d], P = o[d];
     e.lineWidth = 1;
-    const M = u === l.primary ? m.dotBoost : m.dotThr;
-    for (let E = 0; E < S; E++)
-      e.beginPath(), e.arc(g(c[E]), b(k[E]), 3, 0, Math.PI * 2), e.strokeStyle = M, e.fillStyle = M, D === E ? e.fill() : e.stroke();
-    const K = ve(k, c, h.x, 1, T), R = ve(k, c, h.x, 0, T);
+    const R = d === a.primary ? p.dotBoost : p.dotThr;
+    for (let A = 0; A < S; A++)
+      e.beginPath(), e.arc(v(l[A]), y(P[A]), 3, 0, Math.PI * 2), e.strokeStyle = R, e.fillStyle = R, I === A ? e.fill() : e.stroke();
+    const G = Ce(P, l, i.x, 1, T), $ = Ce(P, l, i.x, 0, T);
     e.beginPath();
-    for (let E = 0; E < I; E++) {
-      const q = E / (I - 1), x = U(c, K, q);
-      E === 0 ? e.moveTo(g(q), b(x)) : e.lineTo(g(q), b(x));
+    for (let A = 0; A < B; A++) {
+      const z = A / (B - 1), Y = X(l, G, z);
+      A === 0 ? e.moveTo(v(z), y(Y)) : e.lineTo(v(z), y(Y));
     }
-    for (let E = I - 1; E >= 0; E--) {
-      const q = E / (I - 1);
-      e.lineTo(g(q), b(U(c, R, q)));
+    for (let A = B - 1; A >= 0; A--) {
+      const z = A / (B - 1);
+      e.lineTo(v(z), y(X(l, $, z)));
     }
-    e.closePath(), e.fillStyle = Be(m, l.primary, !1), e.fill(), e.beginPath(), e.arc(g(h.x), b(U(c, k, h.x)), T * v, 0, Math.PI * 2), e.strokeStyle = m.circle, e.lineWidth = 1, e.stroke(), e.fillStyle = `rgba(${m.ink},0.85)`, e.font = "bold 10px sans-serif", e.textAlign = "center", e.textBaseline = "middle", e.save(), e.translate(f + 10, f + A * 0.5), e.rotate(-Math.PI / 2), e.fillText("coarse", 0, 0), e.restore(), e.save(), e.translate(f + v - 6, f + A * 0.5), e.rotate(-Math.PI / 2), e.fillText("fine", 0, 0), e.restore();
-    const [p, X] = u === "Lt" || u === "ct" ? ["smooth", "noisy"] : u === "s" ? ["bold", "dull"] : ["contrasty", "smooth"];
-    e.fillText(p, f + v / 2, f + 9), e.fillText(X, f + v / 2, f + A - 9);
+    e.closePath(), e.fillStyle = Ue(p, a.primary, !1), e.fill(), e.beginPath(), e.arc(v(i.x), y(X(l, P, i.x)), T * C, 0, Math.PI * 2), e.strokeStyle = p.circle, e.lineWidth = 1, e.stroke(), e.fillStyle = `rgba(${p.ink},0.85)`, e.font = "bold 10px sans-serif", e.textAlign = "center", e.textBaseline = "middle", e.save(), e.translate(h + 10, h + w * 0.5), e.rotate(-Math.PI / 2), e.fillText("coarse", 0, 0), e.restore(), e.save(), e.translate(h + C - 6, h + w * 0.5), e.rotate(-Math.PI / 2), e.fillText("fine", 0, 0), e.restore();
+    const [m, N] = d === "Lt" || d === "ct" ? ["smooth", "noisy"] : d === "s" ? ["bold", "dull"] : ["contrasty", "smooth"];
+    e.fillText(m, h + C / 2, h + 9), e.fillText(N, h + C / 2, h + w - 9);
   }
-  e.strokeStyle = `rgba(${m.ink},0.9)`, e.fillStyle = `rgba(${m.ink},0.9)`, e.lineWidth = 1;
-  const N = f + A + 3;
-  for (let c = 1; c < S - 1; c++) {
-    const k = g(r[l.primary][c]);
-    e.beginPath(), e.moveTo(k - 3.5, N + 7), e.lineTo(k, N), e.lineTo(k + 3.5, N + 7), e.closePath(), D === c ? e.fill() : e.stroke();
+  e.strokeStyle = `rgba(${p.ink},0.9)`, e.fillStyle = `rgba(${p.ink},0.9)`, e.lineWidth = 1;
+  const _ = h + w + 3;
+  for (let l = 1; l < S - 1; l++) {
+    const P = v(n[a.primary][l]);
+    e.beginPath(), e.moveTo(P - 3.5, _ + 7), e.lineTo(P, _), e.lineTo(P + 3.5, _ + 7), e.closePath(), I === l ? e.fill() : e.stroke();
   }
 }
-function Ct() {
-  const e = F().react, { useState: t, useRef: s, useEffect: n } = e, r = F().stores.useDevelopStore, l = F().components.Slider, u = F().ui;
-  if (!u)
-    return H(
+function Et() {
+  const e = q().react, { useState: t, useRef: s, useEffect: o } = e, n = q().stores.useDevelopStore, a = q().components.Slider, d = q().ui;
+  if (!d)
+    return O(
       "div",
       { style: { padding: "10px", fontSize: "11px", color: "var(--color-text-muted)" } },
       "Update Safelight to use this panel."
     );
-  const { SegmentedControl: L, Select: h } = u, w = r((o) => o.paramBag), T = r(
+  const { SegmentedControl: g, Select: i } = d, k = n((r) => r.paramBag), T = n(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (o) => o.setDynParams
-  ), D = r((o) => o.commitEdit), m = ct(w), v = it(w), A = ut(w), [g, b] = t(() => F().settings.get("channel", "luma")), [_, ne] = t("L"), [N, c] = t(() => F().settings.get("radius", Lt)), [k, M] = t(null), [K, R] = t(-1), [p, X] = t({ w: 240, h: 160 }), [E, q] = t(0), x = s(null), ue = s(null), G = s(null), ke = s(N);
-  ke.current = N;
-  const Te = s(0), $ = re.find((o) => o.key === g), O = _ === $.primary || _ === $.thr ? _ : $.primary;
-  n(() => {
-    const o = x.current;
-    if (!o) return;
-    const a = new ResizeObserver((d) => {
-      const y = d[0].contentRect.width;
-      y > 0 && X({ w: Math.round(y), h: Math.round(y * 0.6) + Le });
+    (r) => r.setDynParams
+  ), I = n((r) => r.commitEdit), p = Fe(k), C = Ge(k), w = We(k), [v, y] = t(() => q().settings.get("channel", "luma")), [D, ne] = t("L"), [_, l] = t(() => q().settings.get("radius", Pt)), [P, R] = t(null), [G, $] = t(-1), [m, N] = t({ w: 240, h: 160 }), [A, z] = t(0), Y = s(null), de = s(null), H = s(null), Re = s(_);
+  Re.current = _;
+  const $e = s(0), M = re.find((r) => r.key === v), x = D === M.primary || D === M.thr ? D : M.primary;
+  o(() => {
+    const r = Y.current;
+    if (!r) return;
+    const c = new ResizeObserver((f) => {
+      const b = f[0].contentRect.width;
+      b > 0 && N({ w: Math.round(b), h: Math.round(b * 0.6) + Le });
     });
-    return a.observe(o), () => a.disconnect();
-  }, []), n(() => {
-    const o = () => {
-      Te.current += 1, q(Te.current);
-    }, a = new MutationObserver(o);
-    return a.observe(document.documentElement, { attributes: !0 }), a.observe(document.body, { attributes: !0 }), () => a.disconnect();
-  }, []), n(() => {
-    const o = ue.current;
-    if (!o) return;
-    const a = (d) => {
-      d.preventDefault();
-      const y = 1 - 0.1 * Math.sign(d.deltaY), i = Math.min(vt, Math.max(bt, ke.current * y));
-      c(i), F().settings.set("radius", i);
+    return c.observe(r), () => c.disconnect();
+  }, []), o(() => {
+    const r = () => {
+      $e.current += 1, z($e.current);
+    }, c = new MutationObserver(r);
+    return c.observe(document.documentElement, { attributes: !0 }), c.observe(document.body, { attributes: !0 }), () => c.disconnect();
+  }, []), o(() => {
+    const r = de.current;
+    if (!r) return;
+    const c = (f) => {
+      f.preventDefault();
+      const b = 1 - 0.1 * Math.sign(f.deltaY), u = Math.min(wt, Math.max(kt, Re.current * b));
+      l(u), q().settings.set("radius", u);
     };
-    return o.addEventListener("wheel", a, { passive: !1 }), () => o.removeEventListener("wheel", a);
-  }, []), n(() => {
-    const o = ue.current;
-    if (!o) return;
-    const a = window.devicePixelRatio || 1;
-    o.width = p.w * a, o.height = p.h * a;
-    const d = o.getContext("2d");
-    if (!d) return;
-    d.setTransform(a, 0, 0, a, 0, 0);
-    const y = getComputedStyle(o).backgroundColor.match(/\d+(?:\.\d+)?/g), i = y ? (Number(y[0]) + Number(y[1]) + Number(y[2])) / (3 * 255) < 0.5 : !0, P = k !== null || G.current !== null;
-    yt(
-      d,
-      p.w,
-      p.h,
-      m,
-      v,
-      $,
-      O,
-      P ? 1 : A,
-      k,
-      G.current !== null,
-      N,
-      K,
-      gt(i)
+    return r.addEventListener("wheel", c, { passive: !1 }), () => r.removeEventListener("wheel", c);
+  }, []), o(() => {
+    const r = de.current;
+    if (!r) return;
+    const c = window.devicePixelRatio || 1;
+    r.width = m.w * c, r.height = m.h * c;
+    const f = r.getContext("2d");
+    if (!f) return;
+    f.setTransform(c, 0, 0, c, 0, 0);
+    const b = getComputedStyle(r).backgroundColor.match(/\d+(?:\.\d+)?/g), u = b ? (Number(b[0]) + Number(b[1]) + Number(b[2])) / (3 * 255) < 0.5 : !0, E = P !== null || H.current !== null;
+    At(
+      f,
+      m.w,
+      m.h,
+      p,
+      C,
+      M,
+      x,
+      E ? 1 : w,
+      P,
+      H.current !== null,
+      _,
+      G,
+      Ct(u)
     );
-  }, [w, g, _, N, p, k, K, E]);
-  const Ue = p.w - 2 * f, Ae = p.h - 2 * f - Le, Ee = (o) => {
-    const a = o.currentTarget.getBoundingClientRect(), d = a.width > 0 ? p.w / a.width : 1, y = a.height > 0 ? p.h / a.height : 1, i = (o.clientX - a.left) * d, P = (o.clientY - a.top) * y;
+  }, [k, v, D, _, m, P, G, A]);
+  const Ke = m.w - 2 * h, Te = m.h - 2 * h - Le, Be = (r) => {
+    const c = r.currentTarget.getBoundingClientRect(), f = c.width > 0 ? m.w / c.width : 1, b = c.height > 0 ? m.h / c.height : 1, u = (r.clientX - c.left) * f, E = (r.clientY - c.top) * b;
     return {
-      x: be((i - f) / Ue),
-      y: be(1 - (P - f) / Ae),
-      strip: P > f + Ae
+      x: Se((u - h) / Ke),
+      y: Se(1 - (E - h) / Te),
+      strip: E > h + Te
     };
-  }, de = (o) => {
-    const a = v[$.primary];
-    let d = 0, y = Math.abs(a[0] - o);
-    for (let i = 1; i < S; i++) {
-      const P = Math.abs(a[i] - o);
-      P < y && (y = P, d = i);
+  }, fe = (r) => {
+    const c = C[M.primary];
+    let f = 0, b = Math.abs(c[0] - r);
+    for (let u = 1; u < S; u++) {
+      const E = Math.abs(c[u] - r);
+      E < b && (b = E, f = u);
     }
-    return d;
-  }, j = (o, a, d = A) => T(Xe(o, a, d)), oe = () => D("Contrast Equalizer"), ze = (o) => {
-    const { x: a, y: d, strip: y } = Ee(o);
-    if (o.currentTarget.setPointerCapture(o.pointerId), y)
-      G.current = {
+    return f;
+  }, V = (r, c, f = w) => T(Me(r, c, f)), oe = () => I("Contrast Equalizer"), Ye = (r) => {
+    const { x: c, y: f, strip: b } = Be(r);
+    if (r.currentTarget.setPointerCapture(r.pointerId), b)
+      H.current = {
         mode: "x",
-        ch2: O,
-        node: de(a),
-        snapC: Q(m),
-        snapX: Z(v),
+        ch2: x,
+        node: fe(c),
+        snapC: j(p),
+        snapX: J(C),
         pick: 0,
-        fx: a,
+        fx: c,
         moved: !1
       };
     else {
-      const i = U(v[O], m[O], a) - d;
-      G.current = {
+      const u = X(C[x], p[x], c) - f;
+      H.current = {
         mode: "y",
-        ch2: O,
+        ch2: x,
         node: -1,
-        snapC: Q(m),
-        snapX: Z(v),
-        pick: i,
-        fx: a,
+        snapC: j(p),
+        snapX: J(C),
+        pick: u,
+        fx: c,
         moved: !1
       };
     }
-  }, qe = (o) => {
-    const { x: a, y: d, strip: y } = Ee(o), i = G.current;
-    if (i) {
-      if (i.mode === "x") {
-        if (i.node > 0 && i.node < S - 1) {
-          const P = i.snapX[$.primary], se = Math.min(P[i.node + 1] - 1e-3, Math.max(P[i.node - 1] + 1e-3, a)), J = Z(i.snapX);
-          J[$.primary][i.node] = se, $.thr && (J[$.thr][i.node] = se), i.moved = !0, j(i.snapC, J);
+  }, Ve = (r) => {
+    const { x: c, y: f, strip: b } = Be(r), u = H.current;
+    if (u) {
+      if (u.mode === "x") {
+        if (u.node > 0 && u.node < S - 1) {
+          const E = u.snapX[M.primary], se = Math.min(E[u.node + 1] - 1e-3, Math.max(E[u.node - 1] + 1e-3, c)), Z = J(u.snapX);
+          Z[M.primary][u.node] = se, M.thr && (Z[M.thr][u.node] = se), u.moved = !0, V(u.snapC, Z);
         }
-        M({ x: a, y: d, strip: !1 });
+        R({ x: c, y: f, strip: !1 });
       } else {
-        const P = Q(i.snapC);
-        P[i.ch2] = ve(i.snapC[i.ch2], i.snapX[i.ch2], i.fx, d + i.pick, N), i.moved = !0, j(P, i.snapX), M({ x: i.fx, y: d, strip: !1 });
+        const E = j(u.snapC);
+        E[u.ch2] = Ce(u.snapC[u.ch2], u.snapX[u.ch2], u.fx, f + u.pick, _), u.moved = !0, V(E, u.snapX), R({ x: u.fx, y: f, strip: !1 });
       }
       return;
     }
-    if (M({ x: a, y: d, strip: y }), y)
-      R(de(a));
-    else if (R(-1), $.thr) {
-      const P = de(a), se = Math.abs(d - m[$.primary][P]), J = Math.abs(d - m[$.thr][P]);
-      ne(se <= J ? $.primary : $.thr);
+    if (R({ x: c, y: f, strip: b }), b)
+      $(fe(c));
+    else if ($(-1), M.thr) {
+      const E = fe(c), se = Math.abs(f - p[M.primary][E]), Z = Math.abs(f - p[M.thr][E]);
+      ne(se <= Z ? M.primary : M.thr);
     } else
-      ne($.primary);
-  }, Ge = () => {
-    const o = G.current;
-    G.current = null, o && o.moved && oe();
-  }, Oe = () => {
-    G.current || (M(null), R(-1));
-  }, Fe = () => {
-    const o = Q(m);
-    o[O] = Array.from({ length: S }, () => Y[O]);
-    const a = Z(v);
-    a[O] = [...ye], j(o, a), oe();
-  }, He = H(L, {
-    value: g,
+      ne(M.primary);
+  }, Ze = () => {
+    const r = H.current;
+    H.current = null, r && r.moved && oe();
+  }, je = () => {
+    H.current || (R(null), $(-1));
+  }, Je = () => {
+    const r = j(p);
+    r[x] = Array.from({ length: S }, () => W[x]);
+    const c = J(C);
+    c[x] = [...Pe], V(r, c), oe();
+  }, Qe = O(g, {
+    value: v,
     size: "sm",
-    options: re.map((o) => ({ value: o.key, label: o.label })),
-    onChange: (o) => {
-      const a = re.find((d) => d.key === o);
-      b(a.key), ne(a.primary), F().settings.set("channel", a.key);
+    options: re.map((r) => ({ value: r.key, label: r.label })),
+    onChange: (r) => {
+      const c = re.find((f) => f.key === r);
+      y(c.key), ne(c.primary), q().settings.set("channel", c.key);
     }
-  }), We = H(
+  }), et = O(
     "div",
-    { ref: x, style: { width: "100%" } },
-    H("canvas", {
-      ref: ue,
+    { ref: Y, style: { width: "100%" } },
+    O("canvas", {
+      ref: de,
       style: {
-        width: p.w,
-        height: p.h,
+        width: m.w,
+        height: m.h,
         touchAction: "none",
         borderRadius: 4,
         background: "var(--color-surface-0)",
         cursor: "crosshair",
         display: "block"
       },
-      onPointerDown: ze,
-      onPointerMove: qe,
-      onPointerUp: Ge,
-      onPointerLeave: Oe,
-      onDoubleClick: Fe
+      onPointerDown: Ye,
+      onPointerMove: Ve,
+      onPointerUp: Ze,
+      onPointerLeave: je,
+      onDoubleClick: Je
     })
-  ), Ke = H(h, {
+  ), tt = O(i, {
     value: "",
     style: { width: "100%" },
-    onChange: (o) => {
-      const a = $e.find((d) => d.id === o);
-      a && (j(a.build(), Ce(), ae), oe());
+    onChange: (r) => {
+      const c = Xe.find((f) => f.id === r);
+      c && (V(c.build(), ke(), ce), oe());
     },
     options: [
       { value: "", label: "Presets…" },
-      ...$e.map((o) => ({ value: o.id, label: o.label }))
+      ...Xe.map((r) => ({ value: r.id, label: r.label }))
     ]
-  }), Ye = H(
+  }), nt = O(
     "p",
     { style: { margin: "2px 0 0", fontSize: 10, color: "var(--color-text-muted)", lineHeight: 1.35 } },
     "Drag to shape the curve · wheel sets the radius · drag under the graph to move a node · double-click resets the curve."
   );
-  return H(
+  return O(
     "div",
     { style: { display: "flex", flexDirection: "column", gap: 6, padding: 8 } },
-    He,
-    We,
-    H(l, {
+    Qe,
+    et,
+    O(a, {
       label: "Mix",
-      value: A,
+      value: w,
       min: 0,
       max: 3,
       step: 0.01,
-      defaultValue: ae,
-      onChange: (o) => j(m, v, o),
+      defaultValue: ce,
+      onChange: (r) => V(p, C, r),
       onCommit: oe
     }),
-    Ke,
-    Ye
+    tt,
+    nt
   );
 }
-const St = `${te}.panel`;
-function wt(e) {
+const Mt = `${te}.panel`;
+let ee = null;
+function Rt(e) {
   const t = e.stores.useDevelopStore.getState();
-  t.setDynParams(Xe(le(), Ce(), ae)), t.commitEdit("Contrast Equalizer reset");
+  t.setDynParams(Me(le(), ke(), ce)), t.commitEdit("Contrast Equalizer reset");
 }
-function kt(e) {
-  Ve(e);
-  for (const t of lt()) e.registerProcessingStage(t);
+function $t(e) {
+  ot(e);
+  for (const t of mt()) e.registerProcessingStage(t);
   e.registerPanel({
-    id: St,
+    id: Mt,
     title: "Contrast Equalizer",
-    component: Ct,
+    component: Et,
     defaultDock: { module: "develop", direction: "right", order: 7, width: 268 },
-    onReset: () => wt(e)
-  });
+    onReset: () => Rt(e)
+  }), ee = e.stores.useDevelopStore.subscribe(
+    (t, s) => {
+      if (t.paramBag === s.paramBag) return;
+      const o = vt(t.paramBag);
+      o && t.setDynParams(o);
+    }
+  );
 }
 function Tt() {
+  ee == null || ee(), ee = null;
   const e = globalThis.safelight;
   if (e)
-    for (let t = 0; t < ie; t++) e.unregisterProcessingStage(Se(t));
+    for (const t of we) e.unregisterProcessingStage(ie(t));
 }
 export {
-  kt as activate,
+  $t as activate,
   Tt as deactivate
 };
 //# sourceMappingURL=index.js.map

@@ -48,40 +48,67 @@ detail, down softens it. Six control nodes per curve, exactly as in darktable.
 Faithful to darktable's `atrous` module (`src/iop/atrous.c`, `src/common/eaw.c`):
 
 - **B3-spline à trous** decomposition, `[1,4,6,4,1]/16` separable kernel, dilation
-  `2^scale`, made **edge-aware** with darktable's weight
-  `exp(-sharp·ΔL²)` (luma) / `exp(-sharp·(Δa²+Δb²))` (chroma).
+  `2^scale` over darktable's **eight levels**, made **edge-aware** with darktable's
+  weight `exp(-sharp·ΔL²)` (luma) / `exp(-sharp·(Δa²+Δb²))` (chroma).
 - Detail is boosted by **`(2·curve)²`** and **soft-cored** against the denoise
   threshold `copysign(max(|d|−thr, 0))`, with darktable's per-scale threshold
   scaling `2^(−7(1−t))·{10,20}·curve`. The sharpness curve feeds `0.0025·curve`.
+  Every level takes its own coefficients from the curves at darktable's own
+  sample positions.
 - The 0.5 centre and 0 thresholds make the neutral curve an exact identity.
 
 ### How it maps onto SafeLight
 
-SafeLight runs extension wavelet passes through its GPU pre-pass framework. The
-equalizer registers **four stages, each owning a pair of darktable's eight
-wavelet octaves** (0+1, 2+3, 4+5, 6+7). Each stage runs the true à trous chain
-(dilation doubling per level, exactly darktable's ladder) from the source and
-emits its pair's summed detail, so the four bands **tile darktable's eight-level
-decomposition exactly** — a flat curve (e.g. the Clarity preset) reproduces
-darktable's full eight-octave result to float precision. Sloped curves apply the
-average of each pair's two boosts/thresholds, so they differ from darktable only
-by the curve's variation *within* a pair. Decomposing every band from the source
-keeps the bands independent and lets the boosts/thresholds apply *inline*, so
-dragging the luma/chroma curves is interactive (the wavelet decomposition is
-cached and only recomputed when the **edges** curve or the image changes).
+SafeLight runs extension wavelet passes through its GPU pre-pass framework: a
+chain of full-frame draws, each reading only the previous draw's three channels.
+The equalizer registers **three chains** that each carry darktable's whole
+recursion in those three channels — the coarse level to blur next and the
+running result of the levels already processed:
+
+- **luma** — source luma, the coarse level as an offset from it, and the
+  accumulated luma change;
+- **chroma R−L** and **chroma B−L** — the two coarse chroma coordinates plus the
+  accumulated change of one of them (darktable's chroma synthesis acts on a
+  vector, so each chain runs the identical blur and keeps its own coordinate).
+
+Each chain is darktable's eight-level decomposition and synthesis in eight
+26-tap draws; the result is its full eight-octave answer, which the test suite
+checks to float precision against an independent transcription of the C. A chain
+whose curves are neutral costs nothing (its pre-pass is skipped), and editing the
+luma curve reruns only the luma chain.
 
 Differences from darktable to be aware of:
 
 - Detail is computed in linear scene RGB split into luma + chroma (darktable works
   in Lab); the luma weight is taken to a 0–100 scale so the thresholds and edge
   weights keep darktable's numeric feel.
-- Boosts and thresholds act per two-octave band (the pair's average) rather than
-  per octave, and the noise coring applies to the merged band's detail.
+- darktable uses fewer levels below ~2.5k px; the decomposition here is the same
+  eight at every render size, so thumbnails and exports match the develop view.
 - darktable draws a per-band energy histogram behind the curve and shifts its
   scale marks with the zoom; the graph here shades the fixed octave spans.
-- Wavelet detail is bias-encoded so it survives the 8-bit render-target fallback on
-  GPUs without `EXT_color_buffer_float`; the float path (essentially all desktop
-  GPUs) is full-precision.
+- The chains store signed values and need float render targets
+  (`EXT_color_buffer_float`, present on every desktop GPU); on the 8-bit fallback
+  the tool degrades.
+
+### Tests
+
+`npm test` runs on the CPU: darktable's presets recomputed from the C, the
+param-bag contract (what idles a chain, how older edits are brought forward), a
+**per-draw texture-fetch budget** on the actual pass GLSL, and the render
+model against the darktable transcription for many curve shapes.
+
+`npm run test:gpu` runs the chains through a SafeLight checkout's WebGL harness
+(headless Chromium on SwiftShader): every pass program compiles, an untouched
+photo is a bit-exact no-op, and the rendered change matches darktable to
+half-float precision. It needs the SafeLight repository beside this one (or
+`SAFELIGHT_CORE=<path>`) with its dev dependencies installed.
+
+The budget exists because 2.0.0's last draw per band re-evaluated a 26-tap level
+at 26 positions — 676 fetches per pixel in one draw call, several seconds on an
+integrated GPU at develop resolution. The driver's hang detection reset the GPU,
+Chromium's GPU process went down with it and SafeLight fell back to the Library.
+The CPU harness never saw it because it computes each level once per frame; the
+budget counts what the GPU executes.
 
 ## Install
 

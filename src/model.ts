@@ -60,33 +60,22 @@ export function cloneXs(src: CurveXs): CurveXs {
   return { L: [...src.L], c: [...src.c], s: [...src.s], Lt: [...src.Lt], ct: [...src.ct] };
 }
 
-// ── GPU scales ───────────────────────────────────────────────────────────────
+// ── Wavelet levels ───────────────────────────────────────────────────────────
 //
-// darktable runs eight à trous octaves; we run four stages, each owning a PAIR
-// of consecutive octaves. Stage b chains from the source to octave o = 2b and
-// emits the two-octave detail c_o − c_{o+2} (wavelet.ts), so the four bands
-// TILE darktable's eight-level decomposition exactly: Σ bands = source − c_8.
-// Curve positions use darktable's own get_scales() mapping t = 1 − (s+0.5)/i0
-// with i0 = 8 (its exact value for any image whose long edge exceeds ~2.5k px);
-// a band's boost/threshold is the average of its two octaves' — exact for a
-// flat curve, and off only by the within-pair curve slope otherwise.
+// darktable runs eight à trous levels (dilation 2^j); every level gets its own
+// boost/threshold/sharpness, sampled from the curves at darktable's own
+// get_scales() position t = 1 − (j+0.5)/i0. i0 is fixed at 8 — its exact value
+// for any image whose long edge exceeds ~2.5k px (darktable shrinks it below
+// that; we keep the decomposition identical at every render size instead).
 
 export const DT_SCALES = 8;
-export const OCTAVES: readonly number[] = [0, 2, 4, 6];
-export const GPU_SCALES = OCTAVES.length;
 
-const octaveT = (o: number): number => 1 - (o + 0.5) / DT_SCALES;
-
-/** The two octaves each band spans (its emitted detail is their sum), as curve
- *  positions. darktable boosts/cores the two separately; a single coefficient
- *  serves the merged band, so the pair's values are AVERAGED. */
-export const BAND_PAIR_T: ReadonlyArray<readonly [number, number]> = OCTAVES.map(
-  (o) => [octaveT(o), octaveT(o + 1)] as const,
+/** Curve position of every à trous level: j=0 is the finest (dilation 1,
+ *  t≈0.94 — the curve's right end), j=7 the coarsest (dilation 128, t≈0.06). */
+export const LEVEL_T: number[] = Array.from(
+  { length: DT_SCALES },
+  (_, j) => 1 - (j + 0.5) / DT_SCALES,
 );
-
-/** Curve position of every à trous chain level — the edge-sharpness curve is
- *  sampled per decomposition level, exactly darktable's per-scale sharp[]. */
-export const LEVEL_T: number[] = Array.from({ length: DT_SCALES }, (_, j) => octaveT(j));
 
 // ── Spline ───────────────────────────────────────────────────────────────────
 
@@ -157,48 +146,39 @@ function mixedEval(
 
 // ── darktable coefficient derivation ─────────────────────────────────────────
 
-/** Per-scale inline uniforms. darktable: boost = (2·curve)², thrs_L =
- *  2^(−7(1−t))·10·Lt, thrs_c = …·20·ct. We store the boost as a **delta from the
- *  1.0 identity** (gain = boost − 1) so a neutral octave's four GPU params are all
- *  zero. That matters twice: the host idles the prepass for an identity band (it
- *  gates on "any non-zero numeric param"), and a full cut stays non-zero, so the
- *  band stays active and is *removed* rather than left subtracting the raw-source
- *  fallback the host binds when a stage looks inert. */
-export interface BandCoeffs {
+/** One level's coefficients. darktable: boost = (2·curve)², thrs_L =
+ *  2^(−7(1−t))·10·Lt, thrs_c = …·20·ct. The boost is stored as a **delta from
+ *  the 1.0 identity** (gain = boost − 1) so a neutral level's params are zero
+ *  (the host idles a prepass whose params are all zero) while a full cut stays
+ *  non-zero, so the level is *removed* rather than skipped. */
+export interface LevelCoeffs {
   gainL: number;
   gainC: number;
   thrL: number;
   thrC: number;
 }
 
-export function bandCoeffs(
+export function levelCoeffs(
   curves: Curves,
   xs: CurveXs,
-  scale: number,
+  level: number,
   mix: number,
-): BandCoeffs {
-  let gainL = 0;
-  let gainC = 0;
-  let thrL = 0;
-  let thrC = 0;
-  // Average the two spanned octaves' coefficients (see BAND_PAIR_T) — each t
-  // keeps its own 2^(−7(1−t)) threshold attenuation. An average of per-octave
-  // gains stays within darktable's own [−1, 3] range, so no clamp is needed.
-  for (const t of BAND_PAIR_T[scale]) {
-    const L = mixedEval(curves, xs, "L", t, mix);
-    const c = mixedEval(curves, xs, "c", t, mix);
-    const Lt = mixedEval(curves, xs, "Lt", t, mix);
-    const ct = mixedEval(curves, xs, "ct", t, mix);
-    const atten = Math.pow(2, -7 * (1 - t));
-    gainL += (2 * L * (2 * L) - 1) / 2;
-    gainC += (2 * c * (2 * c) - 1) / 2;
-    thrL += (atten * 10 * Lt) / 2;
-    thrC += (atten * 20 * ct) / 2;
-  }
-  return { gainL, gainC, thrL, thrC };
+): LevelCoeffs {
+  const t = LEVEL_T[level];
+  const L = mixedEval(curves, xs, "L", t, mix);
+  const c = mixedEval(curves, xs, "c", t, mix);
+  const Lt = mixedEval(curves, xs, "Lt", t, mix);
+  const ct = mixedEval(curves, xs, "ct", t, mix);
+  const atten = Math.pow(2, -7 * (1 - t));
+  return {
+    gainL: 2 * L * (2 * L) - 1,
+    gainC: 2 * c * (2 * c) - 1,
+    thrL: atten * 10 * Lt,
+    thrC: atten * 20 * ct,
+  };
 }
 
-/** Edge-sharpness weight per à trous chain level (darktable: 0.0025·curve_s),
+/** Edge-sharpness weight per à trous level (darktable: 0.0025·curve_s),
  *  DT_SCALES entries the prepass indexes by pass (= level). */
 export function sharps(curves: Curves, xs: CurveXs, mix: number): number[] {
   return LEVEL_T.map((t) => 0.0025 * mixedEval(curves, xs, "s", t, mix));
