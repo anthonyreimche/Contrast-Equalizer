@@ -1,13 +1,15 @@
 // The chains on the real renderer. Run via `npm run test:gpu` (test/gpu/run.cjs
 // copies this file into a SafeLight checkout and runs it under its headless
-// Chromium + SwiftShader rig). Three things the CPU harness cannot check:
+// Chromium + SwiftShader rig). Four things the CPU harness cannot check:
 //
 //  • every pass program compiles and links on a real GLSL ES 3.00 driver;
 //  • the rendered change equals darktable's answer (the same CPU transcription
 //    of atrous.c / eaw.c as test/verify-render.cjs) to half-float precision,
 //    through the host's actual prepass plumbing — unit allocation, ping-pong
 //    targets, the idle gate, the inline blocks;
-//  • an untouched photo is a bit-exact no-op.
+//  • an untouched photo is a bit-exact no-op;
+//  • a signed source (a RAW decode's out-of-gamut colours) renders finite and
+//    still matches darktable.
 //
 // The timings it prints are SwiftShader (CPU) numbers, only useful relative to
 // each other.
@@ -207,7 +209,7 @@ interface Comparison {
 const CLIP_LO = 0.002;
 const CLIP_HI = 0.998;
 
-function compare(on: Frame, off: Frame, ref: Float64Array): Comparison {
+function compare(on: Frame, off: Frame, ref: Float64Array, src = SRC, offset = 0): Comparison {
   let se = 0;
   let max = 0;
   let change = 0;
@@ -216,12 +218,12 @@ function compare(on: Frame, off: Frame, ref: Float64Array): Comparison {
   for (let p = 0; p < N; p++) {
     for (let ch = 0; ch < 3; ch++) {
       const out = ref[p * 3 + ch];
-      if (out < CLIP_LO || out > CLIP_HI) {
+      if (out + offset < CLIP_LO || out + offset > CLIP_HI) {
         clipped++;
         continue;
       }
       const g = on.data[p * 4 + ch] - off.data[p * 4 + ch];
-      const r = out - SRC[p * 3 + ch];
+      const r = out - src[p * 3 + ch];
       const e = g - r;
       se += e * e;
       change += r * r;
@@ -283,6 +285,38 @@ const cases: [string, Curves, number][] = [];
 const MAX_ERROR_FRACTION = 0.04;
 const MAX_ERROR_FLOOR = 5e-5;
 
+// A RAW decode keeps colours beyond the sRGB primaries as negative linear
+// components, and noise near black can take luma below zero; the chains' first
+// draw reads that decode as is. The chains are linear in the signal apart from
+// the edge-stopping weights (exp of a negated square) and the soft-coring
+// (sign-symmetric, magnitude-guarded), so a signed source must still render
+// finite and match darktable. The probe lifts the working colour by
+// SIGNED_OFFSET so values below black survive the display clamp.
+const SIGNED_OFFSET = 0.25;
+const SIGNED_PROBE_PIPELINE = {
+  ...LINEAR_PROBE_PIPELINE,
+  id: "test.ce-signed-probe",
+  glsl: `vec3 pipelineToDisplay(vec3 lin) { return lin + ${SIGNED_OFFSET.toFixed(2)}; }`,
+  sig: "test.ce-signed-probe",
+};
+const SIGNED_SRC = SRC.map((v, i) => {
+  const ch = i % 3;
+  const p = (i - ch) / 3;
+  const x = p % W;
+  const y = (p - x) / W;
+  // An out-of-gamut yellow, textured so every octave has detail to work on.
+  if (x >= 100 && x < 140 && y >= 190 && y < 235) {
+    return [0.3, 0.25, -0.06][ch] * (1 + 0.3 * Math.sin(x * 0.9) * Math.sin(y * 0.7));
+  }
+  // Denoiser-sized excursions around black: channels and luma cross zero.
+  if (x >= 200 && x < 250 && y >= 150 && y < 200) return 0.004 * (((x * 7 + y * 13 + ch * 5) % 5) - 2);
+  return v;
+});
+const SIGNED_SCENE = floatImage(W, H, (x, y) => {
+  const i = (y * W + x) * 3;
+  return [SIGNED_SRC[i], SIGNED_SRC[i + 1], SIGNED_SRC[i + 2]];
+});
+
 describe("Contrast Equalizer chains on the real renderer", () => {
   it("is a bit-exact no-op while every chain is idle", () => {
     // Renderers share one context and a nested one's dispose() tears down GL
@@ -329,6 +363,34 @@ describe("Contrast Equalizer chains on the real renderer", () => {
             `error rms ${s.rmse.toExponential(2)} (${((100 * s.rmse) / s.changeRms).toFixed(2)}%), ` +
             `max ${s.max.toExponential(2)}, ${(100 * s.clipped).toFixed(2)}% clipped`,
         );
+        expect(s.changeRms).toBeGreaterThan(1e-4);
+        expect(s.clipped).toBeLessThan(0.05);
+        expect(s.rmse).toBeLessThan(Math.max(s.changeRms * MAX_ERROR_FRACTION, MAX_ERROR_FLOOR));
+      }
+    });
+  });
+
+  it("stays finite and matches darktable on a signed (RAW out-of-gamut) source", () => {
+    const stages = [...builtinStages(), ...allChainStages()];
+    withRenderer({ stages, pipeline: SIGNED_PROBE_PIPELINE }, (renderer) => {
+      renderer.setImage(SIGNED_SCENE);
+      renderer.setParams(identityParams());
+      renderer.setContributedParams(deriveAll(defaultCurves(), xs, DEFAULT_MIX));
+      const off = renderer.captureFloatFrame();
+      expect(off).not.toBeNull();
+
+      for (const [name, curves, mix] of cases.filter(([n]) => n === "coarse luma + chroma boost" || n === "denoise ramp")) {
+        renderer.setContributedParams(deriveAll(curves, xs, mix));
+        const on = renderer.captureFloatFrame();
+        expect(on).not.toBeNull();
+        const nonFinite = on!.data.filter((v) => !Number.isFinite(v)).length;
+        const s = compare(on!, off!, reference(SIGNED_SRC, curves, xs, mix), SIGNED_SRC, SIGNED_OFFSET);
+        console.log(
+          `[ce-gpu] signed ${name}: ${nonFinite} non-finite; darktable change rms ${s.changeRms.toExponential(2)}; ` +
+            `error rms ${s.rmse.toExponential(2)} (${((100 * s.rmse) / s.changeRms).toFixed(2)}%), ` +
+            `max ${s.max.toExponential(2)}, ${(100 * s.clipped).toFixed(2)}% clipped`,
+        );
+        expect(nonFinite).toBe(0);
         expect(s.changeRms).toBeGreaterThan(1e-4);
         expect(s.clipped).toBeLessThan(0.05);
         expect(s.rmse).toBeLessThan(Math.max(s.changeRms * MAX_ERROR_FRACTION, MAX_ERROR_FLOOR));
