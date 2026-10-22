@@ -6,7 +6,6 @@
   "author": "Anthony Reimche",
   "main": "dist/index.js",
   "license": "GPL-3.0-or-later",
-  "categories": ["Develop", "Detail", "Color"],
   "keywords": ["darktable", "contrast-equalizer", "wavelet", "atrous", "local-contrast", "clarity", "sharpen", "denoise", "equalizer"],
   "repository": "anthonyreimche/Contrast-Equalizer",
   "minAppVersion": "2.5.4"
