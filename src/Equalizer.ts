@@ -14,6 +14,10 @@
 // panel; the ink and overlays flip brightness against it, so no theme can
 // swallow the curves or the circle (SafeLight #96).
 //
+// It edits whatever useParamScope hands it: the photo's bag in the dock, a
+// mask's in the Masking panel's Adjust tab. Nothing here measures the photo,
+// so a mask's panel has all of it.
+//
 // Runtime-loaded extensions aren't Tailwind-scanned, so all styling is inline +
 // CSS variables (see the styling note in the repo memory).
 
@@ -303,7 +307,6 @@ interface DragState {
 export function EqualizerPanel() {
   const react = api().react;
   const { useState, useRef, useEffect } = react;
-  const useDevelopStore = api().stores.useDevelopStore;
   const Slider = api().components.Slider;
   const ui = api().ui;
   if (!ui)
@@ -314,14 +317,8 @@ export function EqualizerPanel() {
     );
   const { SegmentedControl, Select } = ui;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const paramBag: Record<string, any> = useDevelopStore((s: any) => s.paramBag);
-  const setDynParams: (m: Record<string, unknown>) => void = useDevelopStore(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (s: any) => s.setDynParams,
-  );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const commitEdit: (label: string) => void = useDevelopStore((s: any) => s.commitEdit);
+  const scope = api().develop.useParamScope();
+  const paramBag = scope.getParams();
 
   const curves = readCurves(paramBag);
   const xs = readXs(paramBag);
@@ -466,8 +463,8 @@ export function EqualizerPanel() {
   };
 
   // ── Apply / commit ──
-  const applyState = (c: Curves, x: CurveXs, m = mix) => setDynParams(deriveAll(c, x, m));
-  const commit = () => commitEdit("Contrast Equalizer");
+  const applyState = (c: Curves, x: CurveXs, m = mix) => scope.setParams(deriveAll(c, x, m));
+  const commit = () => scope.commit("Contrast Equalizer");
 
   // ── Pointer handlers (darktable's area_* callbacks) ──
   const onPointerDown = (e: PointerEvent & { currentTarget: HTMLCanvasElement }) => {

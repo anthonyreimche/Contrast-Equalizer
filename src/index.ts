@@ -44,6 +44,9 @@ export function activate(api: SafelightAPI): void {
     component: EqualizerPanel,
     defaultDock: { module: "develop", direction: "right", order: 7, width: 268 },
     onReset: () => resetPanel(api),
+    // The same panel edits a mask's curves in the Masking panel's Adjust tab.
+    // It writes the curves and every chain's tables together, so it owns both.
+    mask: { component: EqualizerPanel, owns: Object.keys(deriveAll(defaultCurves(), defaultXs(), DEFAULT_MIX)) },
   });
 
   // Edits saved by earlier releases keep their curves but drove the GPU through

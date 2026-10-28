@@ -51,6 +51,10 @@ export interface ProcessingStageContribution {
   helpers?: string;
   uniforms: UniformDeclaration[];
   passes?: StagePass[];
+  /** Runs the stage again inside each mask whose bag holds its keys, with that
+   *  mask's values, blended by its coverage (Safelight 3.1.0, process version 2
+   *  photos). */
+  mask?: { maskable: true };
 }
 
 export interface PanelDockDefault {
@@ -69,6 +73,21 @@ export interface PanelContribution {
   defaultDock?: PanelDockDefault;
   onReset?: () => void;
   headerAccessory?: ComponentType;
+  /** Offers the panel in a mask's Adjust tab: each mask that adds it renders
+   *  `component`, which edits that mask's values through useParamScope. `owns`
+   *  lists every qualified key it writes, seeded on add and cleared on remove. */
+  mask?: { component: ComponentType; order?: number; owns: readonly string[] };
+}
+
+/** The params a panel edits: the photo's bag, or one mask's (maskId set).
+ *  Reads see the store as it is now, not as the render was handed it. */
+export interface ParamScope {
+  maskId: string | null;
+  getParam(key: string): unknown;
+  /** The stored values by qualified key, without defaults. */
+  getParams(): Readonly<Record<string, unknown>>;
+  setParams(patch: Record<string, unknown>): void;
+  commit(label: string): void;
 }
 
 export type SettingsField =
@@ -110,6 +129,10 @@ export interface SafelightAPI {
   /** { useDevelopStore, useCatalogStore, useUIStore, usePresetsStore, … }. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   stores: Record<string, any>;
+  develop: {
+    /** The mask's scope inside a mask's Adjust tab, the photo's anywhere else. */
+    useParamScope(): ParamScope;
+  };
   /** Shared core UI kit. Optional — older hosts won't provide it. */
   ui?: {
     Button: ComponentType;

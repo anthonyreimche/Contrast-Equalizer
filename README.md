@@ -42,6 +42,12 @@ detail, down softens it. Six control nodes per curve, exactly as in darktable.
   Applying one resets the node positions and the mix, as darktable does.
 - The plot sits on the panel's themed surface like every other panel; the grid,
   curves and overlays flip brightness against it, so no theme can hide them.
+- **In masks:** add Contrast Equalizer to a mask from the Masking panel's Adjust
+  tab to run a second equalizer inside that mask only, with its own curves, mix
+  and presets. The mask's panel has everything the dock's has. It needs the
+  current processing: on a photo edited in an earlier Safelight, use Update
+  processing first. Each mask that uses it runs its own decomposition, up to
+  three chains of eight draws, so many such masks take a moment longer to show.
 
 ## The math
 
@@ -94,13 +100,16 @@ Differences from darktable to be aware of:
 
 `npm test` runs on the CPU: darktable's presets recomputed from the C, the
 param-bag contract (what idles a chain, how older edits are brought forward), a
-**per-draw texture-fetch budget** on the actual pass GLSL, and the render
-model against the darktable transcription for many curve shapes.
+**per-draw texture-fetch budget** on the actual pass GLSL, the render
+model against the darktable transcription for many curve shapes, and the mask
+contract: every chain maskable, the panel's `owns`, and the panel writing a
+mask's curves rather than the photo's.
 
 `npm run test:gpu` runs the chains through a SafeLight checkout's WebGL harness
 (headless Chromium on SwiftShader): every pass program compiles, an untouched
-photo is a bit-exact no-op, and the rendered change matches darktable to
-half-float precision. It needs the SafeLight repository beside this one (or
+photo is a bit-exact no-op, the rendered change matches darktable to
+half-float precision, and a mask over the right half runs its own chains there
+while the left half stays bit-identical. It needs the SafeLight repository beside this one (or
 `SAFELIGHT_CORE=<path>`) with its dev dependencies installed.
 
 The budget exists because 2.0.0's last draw per band re-evaluated a 26-tap level
@@ -115,7 +124,7 @@ budget counts what the GPU executes.
 Install from the SafeLight **Extensions** window, or load this folder via
 Developer Tools ▸ Extensions during development. A **Contrast Equalizer** panel
 appears in Develop (right dock). Build from source with `npm install && npm run
-build` (outputs `dist/index.js`).
+build` (outputs `dist/index.js`). Needs SafeLight 3.1.0 or later.
 
 ## License & credits
 

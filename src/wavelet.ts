@@ -230,6 +230,9 @@ function stage(
     glsl: inline,
     uniforms: INLINE_UNIFORMS,
     passes: [{ glsl, helpers, iterations: DT_SCALES, uniforms: PASS_UNIFORMS }],
+    // A mask's copy runs its own decomposition with the mask's tables; a chain
+    // the mask's curves leave idle is all zeros, so its passes are skipped too.
+    mask: { maskable: true },
   };
 }
 

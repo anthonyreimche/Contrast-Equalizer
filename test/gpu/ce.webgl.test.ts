@@ -1,6 +1,6 @@
 // The chains on the real renderer. Run via `npm run test:gpu` (test/gpu/run.cjs
 // copies this file into a SafeLight checkout and runs it under its headless
-// Chromium + SwiftShader rig). Four things the CPU harness cannot check:
+// Chromium + SwiftShader rig). Five things the CPU harness cannot check:
 //
 //  • every pass program compiles and links on a real GLSL ES 3.00 driver;
 //  • the rendered change equals darktable's answer (the same CPU transcription
@@ -9,7 +9,10 @@
 //    targets, the idle gate, the inline blocks;
 //  • an untouched photo is a bit-exact no-op;
 //  • a signed source (a RAW decode's out-of-gamut colours) renders finite and
-//    still matches darktable.
+//    still matches darktable;
+//  • a mask's copies of the three chains run their own decompositions with the
+//    mask's curves inside the mask, leaving every pixel outside it as the
+//    photo's own curves left it.
 //
 // The timings it prints are SwiftShader (CPU) numbers, only useful relative to
 // each other.
@@ -35,6 +38,7 @@ import {
   identityParams,
   withRenderer,
 } from "@/rendering/webgl/webgl.test-support";
+import { defaultMaskAdjustments, type Mask } from "@/catalog/types";
 
 // ── darktable, restricted to the working domain (see test/verify-render.cjs) ─
 
@@ -209,13 +213,24 @@ interface Comparison {
 const CLIP_LO = 0.002;
 const CLIP_HI = 0.998;
 
-function compare(on: Frame, off: Frame, ref: Float64Array, src = SRC, offset = 0): Comparison {
+/** The GPU's change against darktable's, over the columns `inside` picks (all by default). */
+function compare(
+  on: Frame,
+  off: Frame,
+  ref: Float64Array,
+  src = SRC,
+  offset = 0,
+  inside = (_x: number) => true,
+): Comparison {
   let se = 0;
   let max = 0;
   let change = 0;
   let n = 0;
   let clipped = 0;
+  let total = 0;
   for (let p = 0; p < N; p++) {
+    if (!inside(p % W)) continue;
+    total += 3;
     for (let ch = 0; ch < 3; ch++) {
       const out = ref[p * 3 + ch];
       if (out + offset < CLIP_LO || out + offset > CLIP_HI) {
@@ -231,7 +246,7 @@ function compare(on: Frame, off: Frame, ref: Float64Array, src = SRC, offset = 0
       if (Math.abs(e) > max) max = Math.abs(e);
     }
   }
-  return { rmse: Math.sqrt(se / n), changeRms: Math.sqrt(change / n), max, clipped: clipped / (N * 3) };
+  return { rmse: Math.sqrt(se / n), changeRms: Math.sqrt(change / n), max, clipped: clipped / total };
 }
 
 const xs = defaultXs();
@@ -317,6 +332,15 @@ const SIGNED_SCENE = floatImage(W, H, (x, y) => {
   return [SIGNED_SRC[i], SIGNED_SRC[i + 1], SIGNED_SRC[i + 2]];
 });
 
+// A linear gradient whose step sits at u = 0.5: the right half is covered.
+const RIGHT_HALF: Mask["components"][number] = {
+  id: "right",
+  kind: "linear",
+  mode: "add",
+  invert: false,
+  linear: { x0: 0.5, y0: 0, x1: 0.5001, y1: 0 },
+};
+
 describe("Contrast Equalizer chains on the real renderer", () => {
   it("is a bit-exact no-op while every chain is idle", () => {
     // Renderers share one context and a nested one's dispose() tears down GL
@@ -395,6 +419,50 @@ describe("Contrast Equalizer chains on the real renderer", () => {
         expect(s.clipped).toBeLessThan(0.05);
         expect(s.rmse).toBeLessThan(Math.max(s.changeRms * MAX_ERROR_FRACTION, MAX_ERROR_FLOOR));
       }
+    });
+  });
+
+  it("applies a mask's curves inside the mask, and the photo's everywhere else", () => {
+    const [name, curves, mix] = cases.find(([n]) => n === "coarse luma + chroma boost")!;
+    const mask: Mask = {
+      id: "m",
+      name: "Mask",
+      visible: true,
+      invert: false,
+      opacity: 100,
+      adj: defaultMaskAdjustments(),
+      panels: ["contrast-equalizer.panel"],
+      bag: deriveAll(curves, xs, mix),
+      components: [RIGHT_HALF],
+    };
+    const stages = [...builtinStages(), ...allChainStages()];
+    withRenderer({ stages, pipeline: LINEAR_PROBE_PIPELINE }, (renderer) => {
+      renderer.setImage(SCENE);
+      renderer.setContributedParams(deriveAll(defaultCurves(), xs, DEFAULT_MIX));
+      renderer.setParams(identityParams({ processVersion: 2 }));
+      const off = renderer.captureFloatFrame();
+      renderer.setParams(identityParams({ processVersion: 2, masks: [mask] }));
+      const on = renderer.captureFloatFrame();
+      expect(off).not.toBeNull();
+      expect(on).not.toBeNull();
+
+      // Columns either side of the step, clear of the three its baked coverage
+      // ramps over at this width (about 0.2, 0.6 and 0.98 from column 128).
+      const left = (x: number) => x < W / 2 - 1;
+      const right = (x: number) => x > W / 2 + 2;
+      for (let p = 0; p < N; p++) {
+        if (!left(p % W)) continue;
+        for (let ch = 0; ch < 3; ch++) expect(on!.data[p * 4 + ch]).toBe(off!.data[p * 4 + ch]);
+      }
+      const s = compare(on!, off!, reference(SRC, curves, xs, mix), SRC, 0, right);
+      console.log(
+        `[ce-gpu] masked ${name}: darktable change rms ${s.changeRms.toExponential(2)}; ` +
+          `error rms ${s.rmse.toExponential(2)} (${((100 * s.rmse) / s.changeRms).toFixed(2)}%), ` +
+          `max ${s.max.toExponential(2)}, ${(100 * s.clipped).toFixed(2)}% clipped`,
+      );
+      expect(s.changeRms).toBeGreaterThan(1e-4);
+      expect(s.clipped).toBeLessThan(0.05);
+      expect(s.rmse).toBeLessThan(Math.max(s.changeRms * MAX_ERROR_FRACTION, MAX_ERROR_FLOOR));
     });
   });
 });
