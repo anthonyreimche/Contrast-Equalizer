@@ -75,8 +75,10 @@ const LB = "0.0722";
 // ── Pass GLSL ────────────────────────────────────────────────────────────────
 //
 // Per-level tables arrive as vec4 pairs (levels 0-3 in A, 4-7 in B); the pass
-// index is the level. `readPrev` is the host's: the linearised source on the
-// first draw (uPrevRaw), this chain's previous output afterwards.
+// index is the level. `readPrev` is the host's: on the first draw the chain's
+// input, the image as edited up to the chain from process version 2 and the
+// decode on version 1 (readsCurrentFrom), this chain's previous output
+// afterwards.
 
 const SHARED_HELPERS = `
 // B3 spline 1D weights [1,4,6,4,1]/16.
@@ -87,47 +89,69 @@ float ceLevel(vec4 a, vec4 b, int i) {
   int k = i < 4 ? i : i - 4;
   return k == 0 ? v.x : (k == 1 ? v.y : (k == 2 ? v.z : v.w));
 }
+// model.ts levelStep / levelFade; version 1 steps 2^level pass texels and
+// applies every level in full.
+float ceDilation(int level) {
+#if SL_PROCESS_VERSION >= 2
+  vec2 res = 1.0 / uTexel;
+  float source = max(uSourceSize.x, uSourceSize.y);
+  return exp2(float(level)) * (source > 0.0 ? max(res.x, res.y) / source : 1.0);
+#else
+  return exp2(float(level));
+#endif
+}
+float ceFade(float dilation) {
+#if SL_PROCESS_VERSION >= 2
+  return clamp(1.0 + log2(dilation), 0.0, 1.0);
+#else
+  return 1.0;
+#endif
+}
 `;
 
-// Chain state: x = source luma, y = coarse luma as an offset from it, z =
+// Chain state: x = input luma, y = coarse luma as an offset from it, z =
 // accumulated change. The ping-pong targets are half-float, whose precision is
 // relative: a coarse level stored outright would round to ~1/4000 of itself and
 // the level-to-level differences that become detail would inherit that error
 // eight times over. The offset and the change stay small, so they keep far
-// finer steps; the source luma round-trips unchanged.
+// finer steps; the input luma round-trips unchanged.
 const LUMA_HELPERS = `${SHARED_HELPERS}
 vec3 ceState(vec2 uv) {
   vec3 p = readPrev(uv);
-  return uPrevRaw ? vec3(luma(p), 0.0, 0.0) : p;
+  return uPassIndex == 0 ? vec3(luma(p), 0.0, 0.0) : p;
 }
 float ceCoarse(vec3 st) { return (st.x + st.y) * 100.0; }
 `;
 
-// One eaw_decompose step on the carried luma (25-tap B3 dilated by 2^level,
-// weight exp(−sharp·ΔL²) — eaw.c's −0.5·sharpen luma lane multiplies a DOUBLED
-// square, so the effective exponent is −sharp·ΔL²), then eaw_synthesize for
-// this level folded into the running change. The last draw emits the change.
+// One eaw_decompose step on the carried luma (25-tap B3 dilated by 2^level
+// decode pixels, weight exp(−sharp·ΔL²) — eaw.c's −0.5·sharpen luma lane
+// multiplies a DOUBLED square, so the effective exponent is −sharp·ΔL²), then
+// eaw_synthesize for this level folded into the running change. The last draw
+// emits the change.
 const LUMA_GLSL = `
 {
-  float mult = exp2(float(uPassIndex));
+  float dilation = ceDilation(uPassIndex);
+  float fade = ceFade(dilation);
   float sharp = ceLevel(sharpA, sharpB, uPassIndex);
   vec3 st = ceState(vUv);
   float Lc = ceCoarse(st);
   float sum = 0.0;
   float wsum = 0.0;
-  for (int dy = -2; dy <= 2; dy++) {
-    for (int dx = -2; dx <= 2; dx++) {
-      float Ls = ceCoarse(ceState(vUv + vec2(float(dx), float(dy)) * mult * uTexel));
-      float dL = Lc - Ls;
-      float w = ceB3(dx) * ceB3(dy) * exp(-sharp * dL * dL);
-      sum += w * Ls;
-      wsum += w;
+  if (fade > 0.0) {
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        float Ls = ceCoarse(ceState(vUv + vec2(float(dx), float(dy)) * dilation * uTexel));
+        float dL = Lc - Ls;
+        float w = ceB3(dx) * ceB3(dy) * exp(-sharp * dL * dL);
+        sum += w * Ls;
+        wsum += w;
+      }
     }
   }
   float coarse = wsum > 0.0 ? sum / wsum : Lc;
   float d = Lc - coarse;
   float core = sign(d) * max(abs(d) - ceLevel(thrA, thrB, uPassIndex), 0.0);
-  float acc = st.z + ((1.0 + ceLevel(gainA, gainB, uPassIndex)) * core - d) * 0.01;
+  float acc = st.z + fade * ((1.0 + ceLevel(gainA, gainB, uPassIndex)) * core - d) * 0.01;
   c = uPassIndex == uPassCount - 1 ? vec3(acc, 0.0, 0.0) : vec3(st.x, coarse * 0.01 - st.x, acc);
 }
 `;
@@ -138,7 +162,7 @@ const chromaHelpers = (comp: 0 | 1): string => `${SHARED_HELPERS}
 const int CE_COMP = ${comp};
 vec3 ceState(vec2 uv) {
   vec3 p = readPrev(uv);
-  if (uPrevRaw) {
+  if (uPassIndex == 0) {
     float L = luma(p);
     return vec3(p.r - L, p.b - L, 0.0);
   }
@@ -155,20 +179,23 @@ vec3 ceChroma(vec2 ab) { return vec3(ab.x, -(${LR} * ab.x + ${LB} * ab.y) / ${LG
 // coarse coordinates needs two of them.
 const CHROMA_GLSL = `
 {
-  float mult = exp2(float(uPassIndex));
+  float dilation = ceDilation(uPassIndex);
+  float fade = ceFade(dilation);
   float sharp = ceLevel(sharpA, sharpB, uPassIndex);
   vec3 st = ceState(vUv);
   vec2 abC = st.xy * 100.0;
   vec3 abC3 = ceChroma(abC);
   vec2 sum = vec2(0.0);
   float wsum = 0.0;
-  for (int dy = -2; dy <= 2; dy++) {
-    for (int dx = -2; dx <= 2; dx++) {
-      vec2 abS = ceState(vUv + vec2(float(dx), float(dy)) * mult * uTexel).xy * 100.0;
-      vec3 dab = abC3 - ceChroma(abS);
-      float w = ceB3(dx) * ceB3(dy) * exp(-sharp * dot(dab, dab));
-      sum += w * abS;
-      wsum += w;
+  if (fade > 0.0) {
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        vec2 abS = ceState(vUv + vec2(float(dx), float(dy)) * dilation * uTexel).xy * 100.0;
+        vec3 dab = abC3 - ceChroma(abS);
+        float w = ceB3(dx) * ceB3(dy) * exp(-sharp * dot(dab, dab));
+        sum += w * abS;
+        wsum += w;
+      }
     }
   }
   vec2 coarse = wsum > 0.0 ? sum / wsum : abC;
@@ -179,7 +206,7 @@ const CHROMA_GLSL = `
   // linear) chroma through uncored so the zero-gain case stays an exact identity.
   float fac = mag > 1e-5 ? max(mag - thr, 0.0) / mag : 1.0;
   float dX = CE_COMP == 0 ? d.x : d.y;
-  float acc = st.z + ((1.0 + ceLevel(gainA, gainB, uPassIndex)) * fac * dX - dX) * 0.01;
+  float acc = st.z + fade * ((1.0 + ceLevel(gainA, gainB, uPassIndex)) * fac * dX - dX) * 0.01;
   c = uPassIndex == uPassCount - 1 ? vec3(acc, 0.0, 0.0) : vec3(coarse * 0.01, acc);
 }
 `;
@@ -227,6 +254,15 @@ function stage(
     // additive so their order among themselves doesn't matter.
     phase: "scene-linear",
     priority,
+    // darktable decomposes the image as edited so far. Its thresholds and edge
+    // weights are absolute, so the source's decomposition rescaled to the
+    // exposure would not be the same answer. A later chain's input holds the
+    // earlier ones' changes: the luma change is achromatic, so the chroma
+    // chains decompose the same chroma, but the B−L chain's edge weights see
+    // the R−L chain's change. Version 1 decomposed the decode, the look
+    // those edits were made with.
+    reads: "current",
+    readsCurrentFrom: 2,
     glsl: inline,
     uniforms: INLINE_UNIFORMS,
     passes: [{ glsl, helpers, iterations: DT_SCALES, uniforms: PASS_UNIFORMS }],

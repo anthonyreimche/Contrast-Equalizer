@@ -34,6 +34,22 @@ check("three chains, one stage each", ids.length === 3 && new Set(ids).size === 
 check("stage-id hash prefixes are distinct", new Set(ids.map(hash4)).size === ids.length, ids.map(hash4).join(", "));
 check("chain ids needed no salt (persisted keys stay readable)", ids.every((id) => !/-\d+$/.test(id)));
 
+// darktable decomposes the image as edited so far, so every chain reads the
+// current image. Its first draw reads the host's split texture, where uPrevRaw
+// is false, so the chain's state must be keyed on the draw index instead.
+{
+  const stages = W.allChainStages();
+  check("every chain reads the current image", stages.every((s) => s.reads === "current"));
+  check(
+    "no chain keys its first draw on uPrevRaw",
+    stages.every((s) => s.passes.every((p) => !/\buPrevRaw\b/.test(`${p.helpers}\n${p.glsl}`))),
+  );
+  check(
+    "every chain anchors its steps to the decode's size",
+    stages.every((s) => s.passes.every((p) => /\buSourceSize\b/.test(`${p.helpers}\n${p.glsl}`))),
+  );
+}
+
 // ── Per-level coefficients are darktable's ──────────────────────────────────
 {
   const flat = (v) => Array.from({ length: M.BANDS }, () => v);

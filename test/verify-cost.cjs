@@ -13,6 +13,7 @@
 // run instead of being skipped.
 const path = require("path");
 const W = require(path.join(__dirname, ".build", "wavelet.js"));
+const { atVersion } = require(path.join(__dirname, "process-version.cjs"));
 
 const MAX_FETCHES_PER_DRAW = 32;    // one 5×5 à trous step + its centre = 26
 const MAX_DRAWS_PER_CHAIN = 8;      // darktable's eight octaves
@@ -59,13 +60,13 @@ function functionFetches(name, fns, memo) {
   return v;
 }
 
-// Fetches in loop-free text: the host's readPrev, raw texture() calls, and
-// calls into the stage's own helpers.
+// Fetches in loop-free text: the host's readPrev and readSource, raw texture()
+// calls, and calls into the stage's own helpers.
 function flatFetches(text, fns, memo) {
   if (/\b(for|while|do)\b/.test(text)) {
     throw new Error(`unrecognised loop form: ${text.trim().slice(0, 80)}`);
   }
-  let n = (text.match(/\b(?:texture|readPrev)\s*\(/g) || []).length;
+  let n = (text.match(/\b(?:texture|readPrev|readSource)\s*\(/g) || []).length;
   for (const name of fns.keys()) {
     const calls = (text.match(new RegExp(`\\b${name}\\s*\\(`, "g")) || []).length;
     if (calls) n += calls * functionFetches(name, fns, memo);
@@ -94,13 +95,13 @@ function blockFetches(block, fns, memo) {
   return total + flatFetches(block.slice(cursor), fns, memo);
 }
 
-// Fetches per pixel of one draw of `pass`, including the host's own initial
-// `vec3 c = readPrev(vUv)`.
-function passFetches(pass) {
-  const helpers = stripComments(pass.helpers || "");
+// Fetches per pixel of one draw of `pass` in the program for process version
+// `version`, including the host's own initial `vec3 c = readPrev(vUv)`.
+function passFetches(pass, version) {
+  const helpers = stripComments(atVersion(pass.helpers || "", version));
   const fns = collectFunctions(helpers);
   const memo = new Map();
-  return 1 + blockFetches(stripComments(pass.glsl), fns, memo);
+  return 1 + blockFetches(stripComments(atVersion(pass.glsl, version)), fns, memo);
 }
 
 let fails = 0;
@@ -110,32 +111,34 @@ const check = (name, ok, detail) => {
 };
 
 const stages = W.allChainStages();
-let frame = 0;
-for (const stage of stages) {
-  const passes = stage.passes || [];
-  let chain = 0;
-  let draws = 0;
-  for (const pass of passes) {
-    const perDraw = passFetches(pass);
-    const iterations = pass.iterations || 1;
-    draws += iterations;
-    chain += perDraw * iterations;
-    check(
-      `${stage.id}: fetches per draw ≤ ${MAX_FETCHES_PER_DRAW}`,
-      perDraw <= MAX_FETCHES_PER_DRAW,
-      `${perDraw} per pixel per draw`,
-    );
+for (const version of [1, 2]) {
+  let frame = 0;
+  for (const stage of stages) {
+    const passes = stage.passes || [];
+    let chain = 0;
+    let draws = 0;
+    for (const pass of passes) {
+      const perDraw = passFetches(pass, version);
+      const iterations = pass.iterations || 1;
+      draws += iterations;
+      chain += perDraw * iterations;
+      check(
+        `${stage.id}, version ${version}: fetches per draw ≤ ${MAX_FETCHES_PER_DRAW}`,
+        perDraw <= MAX_FETCHES_PER_DRAW,
+        `${perDraw} per pixel per draw`,
+      );
+    }
+    check(`${stage.id}: draws per chain ≤ ${MAX_DRAWS_PER_CHAIN}`, draws <= MAX_DRAWS_PER_CHAIN, `${draws} draws`);
+    console.log(`      ${stage.id}, version ${version}: ${chain} fetches per pixel over ${draws} draws`);
+    frame += chain;
   }
-  check(`${stage.id}: draws per chain ≤ ${MAX_DRAWS_PER_CHAIN}`, draws <= MAX_DRAWS_PER_CHAIN, `${draws} draws`);
-  console.log(`      ${stage.id}: ${chain} fetches per pixel over ${draws} draws`);
-  frame += chain;
+  check(
+    `version ${version}: full recompute ≤ ${MAX_FETCHES_PER_FRAME} fetches per pixel`,
+    frame <= MAX_FETCHES_PER_FRAME,
+    `${frame} per pixel`,
+  );
 }
 check(`prepass stages ≤ ${MAX_PREPASS_STAGES}`, stages.length <= MAX_PREPASS_STAGES, `${stages.length} stages`);
-check(
-  `full recompute ≤ ${MAX_FETCHES_PER_FRAME} fetches per pixel`,
-  frame <= MAX_FETCHES_PER_FRAME,
-  `${frame} per pixel`,
-);
 
 console.log(fails ? `\n${fails} FAILURE(S)` : "\nALL COST CHECKS PASS");
 process.exit(fails ? 1 : 0);

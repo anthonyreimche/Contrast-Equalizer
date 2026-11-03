@@ -39,14 +39,23 @@ const Slider = () => null;
 const Select = () => null;
 const SegmentedControl = () => null;
 
-/** The API over a photo bag, inside a mask holding `maskBag` when one is given. */
-function rig(photoBag = {}, maskBag) {
+/** The API over a photo bag and its masks, inside a mask holding `maskBag`
+ *  when one is given. */
+function rig(photoBag = {}, maskBag, masks = []) {
   const commits = [];
   const registered = { stages: [], panels: [] };
   const develop = fakeStore({
     photoId: "p1",
+    params: { masks },
     paramBag: photoBag,
     setDynParams: (patch) => develop.setState((s) => ({ paramBag: { ...s.paramBag, ...patch } })),
+    updateMaskBag: (maskId, patch) =>
+      develop.setState((s) => ({
+        params: {
+          ...s.params,
+          masks: s.params.masks.map((m) => (m.id === maskId ? { ...m, bag: { ...m.bag, ...patch } } : m)),
+        },
+      })),
     commitEdit: async (label) => void commits.push(label),
   });
   const mask = fakeStore({ bag: maskBag ?? {} });
@@ -180,6 +189,33 @@ const boosted = (mix) => {
   mix.props.onCommit();
   check("in the dock the mix writes the photo's bag", same(r.develop.getState().paramBag, P.deriveAll(M.defaultCurves(), xs, 1.5)));
   check("in the dock the mix commits under the panel's name", same(r.commits, ["Contrast Equalizer"]), r.commits.join(", "));
+}
+
+// ── Edits saved by 1.x / 2.0 ─────────────────────────────────────────────────
+// They carry curves but none of the chain tables, so the render would ignore
+// them. Brought forward live: the photo's bag and every mask's, including what
+// is already open when the extension activates.
+{
+  const curves = M.defaultCurves();
+  curves.L = [0.62, 0.68, 0.62, 0.54, 0.5, 0.5];
+  const legacy = () => {
+    const bag = {};
+    for (const ch of P.CHANNELS) bag[`contrast-equalizer.curve.${ch}`] = curves[ch];
+    return bag;
+  };
+  const luma = `${W.chainStageId("luma")}.active`;
+  const current = P.deriveAll(curves, xs, M.DEFAULT_MIX);
+  const maskBag = (r, id) => (r.develop.getState().params.masks.find((m) => m.id === id) || {}).bag || {};
+
+  const r = rig(legacy(), undefined, [{ id: "m1", bag: legacy() }, { id: "m2", bag: {} }]);
+  I.activate(r.api);
+  check("the open photo's legacy bag is brought forward at activation", r.develop.getState().paramBag[luma] === 1);
+  const gains = `${W.chainStageId("luma")}.gainA`;
+  check("an open mask's legacy bag is brought forward at activation", same(maskBag(r, "m1")[gains], current[gains]) && maskBag(r, "m1")[luma] === 1);
+  check("a mask without equalizer keys is left alone", same(maskBag(r, "m2"), {}));
+  r.develop.setState((s) => ({ params: { ...s.params, masks: [...s.params.masks, { id: "m3", bag: legacy() }] } }));
+  check("a mask loaded later with a legacy bag is brought forward", maskBag(r, "m3")[luma] === 1);
+  I.deactivate();
 }
 
 console.log(fails ? `\n${fails} FAILURE(S)` : "\nALL MASK CHECKS PASS");

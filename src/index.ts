@@ -17,9 +17,35 @@ import { defaultCurves, defaultXs } from "./model";
 
 const PANEL_ID = `${BASE_ID}.panel`;
 
+interface MaskState {
+  readonly id: string;
+  readonly bag?: Readonly<Record<string, unknown>>;
+}
+
 interface DevelopState {
+  params: { readonly masks: readonly MaskState[] };
   paramBag: Record<string, unknown>;
   setDynParams: (patch: Record<string, unknown>) => void;
+  /** Merges into a mask's bag. */
+  updateMaskBag: (maskId: string, patch: Record<string, unknown>) => void;
+}
+
+// Edits saved by earlier releases keep their curves but drove the GPU through
+// keys these chains never read; re-derive the live uniforms of every such bag,
+// the photo's and each mask's, so the render matches the panel. Live params
+// only — the edit itself is rewritten by the next commit, as any other change
+// would be. `prev` null brings forward whatever is open at activation.
+function migrateOpen(state: DevelopState, prev: DevelopState | null): void {
+  if (!prev || state.params.masks !== prev.params.masks) {
+    for (const mask of state.params.masks) {
+      if (prev?.params.masks.some((m) => m.id === mask.id && m.bag === mask.bag)) continue;
+      const patch = mask.bag ? migrateBag(mask.bag) : null;
+      if (patch) state.updateMaskBag(mask.id, patch);
+    }
+  }
+  if (prev && state.paramBag === prev.paramBag) return;
+  const patch = migrateBag(state.paramBag);
+  if (patch) state.setDynParams(patch);
 }
 
 let stopMigrating: (() => void) | null = null;
@@ -49,17 +75,11 @@ export function activate(api: SafelightAPI): void {
     mask: { component: EqualizerPanel, owns: Object.keys(deriveAll(defaultCurves(), defaultXs(), DEFAULT_MIX)) },
   });
 
-  // Edits saved by earlier releases keep their curves but drove the GPU through
-  // keys these chains never read; re-derive the live uniforms whenever such a
-  // bag is loaded so the render matches the panel. Live params only — the edit
-  // itself is rewritten by the next commit, as any other change would be.
-  stopMigrating = api.stores.useDevelopStore.subscribe(
-    (state: DevelopState, prev: DevelopState) => {
-      if (state.paramBag === prev.paramBag) return;
-      const patch = migrateBag(state.paramBag);
-      if (patch) state.setDynParams(patch);
-    },
-  );
+  // Exports and thumbnails of photos never opened here render their stored
+  // bags as they are; bringing those forward needs a host-side migration hook.
+  stopMigrating?.();
+  stopMigrating = api.stores.useDevelopStore.subscribe(migrateOpen);
+  migrateOpen(api.stores.useDevelopStore.getState(), null);
 }
 
 export function deactivate(): void {

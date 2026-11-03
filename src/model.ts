@@ -66,7 +66,7 @@ export function cloneXs(src: CurveXs): CurveXs {
 // boost/threshold/sharpness, sampled from the curves at darktable's own
 // get_scales() position t = 1 − (j+0.5)/i0. i0 is fixed at 8 — its exact value
 // for any image whose long edge exceeds ~2.5k px (darktable shrinks it below
-// that; we keep the decomposition identical at every render size instead).
+// that; we keep the decomposition identical at every image size instead).
 
 export const DT_SCALES = 8;
 
@@ -76,6 +76,28 @@ export const LEVEL_T: number[] = Array.from(
   { length: DT_SCALES },
   (_, j) => 1 - (j + 0.5) / DT_SCALES,
 );
+
+/** Dilation of level j in pass texels. darktable's levels are 2^j pixels of the
+ *  full-resolution image (get_scales remaps a scaled preview's levels to them),
+ *  so a level covers the same stretch of the photo whether the passes run at a
+ *  thumbnail's 960 px, Develop's 4096 or an export's full long edge. A source
+ *  size of 0 (none yet) counts the pass as full resolution. Process version 1
+ *  steps 2^j pass texels at any size, the look those edits were made with. */
+export function levelStep(level: number, passLongEdge: number, sourceLongEdge: number, processVersion = 2): number {
+  if (processVersion < 2) return 2 ** level;
+  return 2 ** level * (sourceLongEdge > 0 ? passLongEdge / sourceLongEdge : 1);
+}
+
+/** How much of a level's change applies. A level finer than a pass texel isn't
+ *  in the image at this size; darktable has no such level at a scaled preview
+ *  and drops it. Over the octave below one texel it fades out instead of
+ *  popping as the render size crosses it; at a step of ½ texel or less it is
+ *  skipped and passes the coarse level on as it was. Process version 1 applies
+ *  every level in full. */
+export function levelFade(step: number, processVersion = 2): number {
+  if (processVersion < 2) return 1;
+  return Math.min(1, Math.max(0, 1 + Math.log2(step)));
+}
 
 // ── Spline ───────────────────────────────────────────────────────────────────
 

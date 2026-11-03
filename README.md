@@ -90,6 +90,9 @@ Differences from darktable to be aware of:
   weights keep darktable's numeric feel.
 - darktable uses fewer levels below ~2.5k px; the decomposition here is the same
   eight at every render size, so thumbnails and exports match the develop view.
+  A level spans 2^scale pixels of the full-size photo, as in darktable. Photos
+  on process version 1 keep the look they were edited with: 2^scale pixels of
+  the render, whatever its size.
 - darktable draws a per-band energy histogram behind the curve and shifts its
   scale marks with the zoom; the graph here shades the fixed octave spans.
 - The chains store signed values and need float render targets
@@ -124,7 +127,7 @@ budget counts what the GPU executes.
 Install from the SafeLight **Extensions** window, or load this folder via
 Developer Tools ▸ Extensions during development. A **Contrast Equalizer** panel
 appears in Develop (right dock). Build from source with `npm install && npm run
-build` (outputs `dist/index.js`). Needs SafeLight 3.1.0 or later.
+build` (outputs `dist/index.js`). Needs SafeLight 3.2.0 or later.
 
 ## License & credits
 

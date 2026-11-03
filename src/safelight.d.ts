@@ -23,6 +23,7 @@ export interface UniformDeclaration {
 /** A full-screen GPU pre-pass (ping-pong, source-UV space). The body mutates
  *  `vec3 c` (= readPrev(vUv), linear scene RGB). Engine-provided in every pass:
  *  uniform vec2 uTexel; uniform int uPassIndex, uPassCount; vec3 readPrev(vec2);
+ *  uniform vec2 uSourceSize (the decoded frame's size before the render cap);
  *  plus luma()/srgbToLinear()/linearToSrgb(). The final pass result is exposed
  *  to the owning stage's inline glsl as `vec3 stageResult`. */
 export interface StagePass {
@@ -51,6 +52,12 @@ export interface ProcessingStageContribution {
   helpers?: string;
   uniforms: UniformDeclaration[];
   passes?: StagePass[];
+  /** What the passes read first: the decoded source, or the image as edited
+   *  up to this stage. */
+  reads?: "source" | "current";
+  /** With reads "current": the first process version that reads the current
+   *  image; older photos read the source (Safelight 3.2.0). */
+  readsCurrentFrom?: number;
   /** Runs the stage again inside each mask whose bag holds its keys, with that
    *  mask's values, blended by its coverage (Safelight 3.1.0, process version 2
    *  photos). */
