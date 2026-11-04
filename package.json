@@ -1,6 +1,6 @@
 {
   "name": "safelight-contrast-equalizer",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Contrast Equalizer extension for SafeLight — a faithful port of darktable's à trous wavelet contrast equalizer.",
   "type": "module",
   "scripts": {
