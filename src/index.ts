@@ -69,6 +69,7 @@ export function activate(api: SafelightAPI): void {
     title: "Contrast Equalizer",
     component: EqualizerPanel,
     defaultDock: { module: "develop", direction: "right", order: 7, width: 268 },
+    modules: ["develop"],
     onReset: () => resetPanel(api),
     // The same panel edits a mask's curves in the Masking panel's Adjust tab.
     // It writes the curves and every chain's tables together, so it owns both.

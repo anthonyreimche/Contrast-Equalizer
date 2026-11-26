@@ -1,7 +1,7 @@
 {
   "id": "contrast-equalizer",
   "name": "Contrast Equalizer",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "A faithful port of darktable's contrast equalizer — multiscale wavelet local-contrast, sharpening and denoise with luma / chroma / edges curves. For photographers coming from darktable who miss this tool.",
   "author": "Anthony Reimche",
   "main": "dist/index.js",

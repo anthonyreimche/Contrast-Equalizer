@@ -22,6 +22,7 @@
 // CSS variables (see the styling note in the repo memory).
 
 import { h, api } from "./runtime";
+import type { ActiveIdState } from "./safelight";
 import {
   BANDS,
   NODE_X,
@@ -304,18 +305,14 @@ interface DragState {
   moved: boolean;
 }
 
+const GRAPH_TIP =
+  "Drag to shape the curve · wheel sets the radius · drag under the graph to move a node · double-click resets the curve.";
+
 export function EqualizerPanel() {
   const react = api().react;
   const { useState, useRef, useEffect } = react;
   const Slider = api().components.Slider;
-  const ui = api().ui;
-  if (!ui)
-    return h(
-      "div",
-      { style: { padding: "10px", fontSize: "11px", color: "var(--color-text-muted)" } },
-      "Update Safelight to use this panel.",
-    );
-  const { SegmentedControl, Select } = ui;
+  const { SegmentedControl, Select, tokens } = api().ui;
 
   const scope = api().develop.useParamScope();
   const paramBag = scope.getParams();
@@ -367,19 +364,17 @@ export function EqualizerPanel() {
     return () => ro.disconnect();
   }, []);
 
-  // Theme and accessibility swaps restyle the root's CSS variables in place
-  // (state/accessibility.ts setProperty); watch the root so the resolved ink
-  // re-derives without waiting for the next interaction.
-  useEffect(() => {
-    const bump = () => {
-      themeCountRef.current += 1;
-      setThemeEpoch(themeCountRef.current);
-    };
-    const mo = new MutationObserver(bump);
-    mo.observe(document.documentElement, { attributes: true });
-    mo.observe(document.body, { attributes: true });
-    return () => mo.disconnect();
-  }, []);
+  // The theme writes its CSS variables before it sets the id.
+  useEffect(
+    () =>
+      api().stores.useThemeStore.subscribe((state: ActiveIdState, previous: ActiveIdState) => {
+        if (state.activeId !== previous.activeId) {
+          themeCountRef.current += 1;
+          setThemeEpoch(themeCountRef.current);
+        }
+      }),
+    [],
+  );
 
   // Wheel = influence radius (darktable: ×(1 − 0.1·dy), clamped). Attached
   // natively (non-passive) so the dock doesn't scroll; React's onWheel is
@@ -585,12 +580,13 @@ export function EqualizerPanel() {
     { ref: wrapRef, style: { width: "100%" } },
     h("canvas", {
       ref: canvasRef,
+      title: GRAPH_TIP,
       style: {
         width: size.w,
         height: size.h,
         touchAction: "none",
         borderRadius: 4,
-        background: "var(--color-surface-0)",
+        background: tokens.surface0,
         cursor: "crosshair",
         display: "block",
       },
@@ -619,12 +615,6 @@ export function EqualizerPanel() {
     ],
   });
 
-  const hint = h(
-    "p",
-    { style: { margin: "2px 0 0", fontSize: 10, color: "var(--color-text-muted)", lineHeight: 1.35 } },
-    "Drag to shape the curve · wheel sets the radius · drag under the graph to move a node · double-click resets the curve.",
-  );
-
   return h(
     "div",
     { style: { display: "flex", flexDirection: "column", gap: 6, padding: 8 } },
@@ -641,6 +631,5 @@ export function EqualizerPanel() {
       onCommit: commit,
     }),
     presetRow,
-    hint,
   );
 }

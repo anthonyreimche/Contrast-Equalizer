@@ -89,7 +89,7 @@ function rig(photoBag = {}, maskBag, masks = []) {
     registerSettings: () => undefined,
     settings: { get: (_key, fallback) => fallback, set: () => undefined, onChange: () => () => undefined },
     components: { Slider },
-    ui: { SegmentedControl, Select },
+    ui: { SegmentedControl, Select, tokens: { surface0: "var(--color-surface-0)" } },
     stores: { useDevelopStore: develop },
     develop: { useParamScope: () => (maskBag === undefined ? photoScope : maskScope) },
   };
